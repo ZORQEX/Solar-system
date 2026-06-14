@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { Connection } from "../net/connection.ts";
+import { fetchSave, httpBaseFromWs, postLoad } from "../net/rest.ts";
 import type { BodyData, ServerMessage } from "../shared.ts";
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected";
@@ -24,6 +25,8 @@ interface UniverseState {
   pause: () => void;
   resume: () => void;
   spawnAsteroid: () => void;
+  fetchSave: () => Promise<unknown>;
+  loadWorld: (save: unknown) => Promise<void>;
 }
 
 /** Internal, non-reactive connection handle + auto-reconnect bookkeeping. */
@@ -124,6 +127,24 @@ export const useUniverseStore = create<UniverseState>((set, get) => {
     resume: () => {
       set({ paused: false });
       connection?.send({ type: "resume" });
+    },
+
+    fetchSave: async () => {
+      const { serverUrl } = get();
+      if (!serverUrl) throw new Error("not connected");
+      return fetchSave(httpBaseFromWs(serverUrl));
+    },
+
+    loadWorld: async (save) => {
+      const { serverUrl } = get();
+      if (!serverUrl) throw new Error("not connected");
+      try {
+        await postLoad(httpBaseFromWs(serverUrl), save);
+        set({ lastInfo: "world loaded" });
+      } catch (err) {
+        set({ lastInfo: `load failed: ${err instanceof Error ? err.message : err}` });
+        throw err;
+      }
     },
 
     // A small "intervention": fling a rogue asteroid into the system.
