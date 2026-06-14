@@ -1,24 +1,6 @@
-import { SECONDS_PER_DAY, SECONDS_PER_YEAR } from "../shared.ts";
-
-/**
- * Named time scales, expressed as **simulated seconds per real second**. These
- * let a user fly from watching orbits in real time to watching stars live and
- * die over billions of years. The physics integrator caps how large a step it
- * will actually take, so picking a fast scale trades accuracy for reach.
- */
-export const TIME_SCALES = {
-  paused: 0,
-  realtime: 1,
-  "minutes/s": 60,
-  "hours/s": 3600,
-  "days/s": SECONDS_PER_DAY,
-  "years/s": SECONDS_PER_YEAR,
-  "millennia/s": 1e3 * SECONDS_PER_YEAR,
-  "megayears/s": 1e6 * SECONDS_PER_YEAR,
-  "eons/s": 1e9 * SECONDS_PER_YEAR, // gigayears
-} as const;
-
-export type TimeScaleName = keyof typeof TIME_SCALES;
+// Time scales are defined in the shared package so client and server agree.
+import { TIME_SCALES, type TimeScaleName } from "../shared.ts";
+export { TIME_SCALES, type TimeScaleName };
 
 /**
  * Controls how wall-clock time maps to simulated time. Holds the current scale
