@@ -19,6 +19,7 @@ export function Hud() {
   const worldName = useUniverseStore((s) => s.worldName);
   const timeSeconds = useUniverseStore((s) => s.timeSeconds);
   const bodyCount = useUniverseStore((s) => s.bodies.length);
+  const observers = useUniverseStore((s) => s.observers);
   const lastInfo = useUniverseStore((s) => s.lastInfo);
   const reconnect = useUniverseStore((s) => s.reconnect);
 
@@ -38,6 +39,8 @@ export function Hud() {
         <dd>{formatSimTime(timeSeconds)}</dd>
         <dt>bodies</dt>
         <dd>{bodyCount}</dd>
+        <dt>observers</dt>
+        <dd>{observers}</dd>
       </dl>
       {lastInfo && <div className="hud__info">{lastInfo}</div>}
     </div>

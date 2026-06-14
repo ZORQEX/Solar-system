@@ -14,6 +14,7 @@ interface UniverseState {
   selectedId: string | null;
   paused: boolean;
   timeScale: number;
+  observers: number;
   lastInfo: string;
 
   // actions
@@ -56,6 +57,9 @@ export const useUniverseStore = create<UniverseState>((set, get) => {
       case "error":
         set({ lastInfo: `error: ${message.message}` });
         break;
+      case "presence":
+        set({ observers: message.clients });
+        break;
       case "ack":
         break;
     }
@@ -70,6 +74,7 @@ export const useUniverseStore = create<UniverseState>((set, get) => {
     selectedId: null,
     paused: false,
     timeScale: 1,
+    observers: 0,
     lastInfo: "",
 
     connect: (url) => {

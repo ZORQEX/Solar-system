@@ -44,6 +44,7 @@ then a `snapshot` on every tick and after any state-changing command.
 { type: "info",  message: string }     // e.g. "paused", "time scale = 86400"
 { type: "ack",   command: string }     // acknowledges a received command
 { type: "error", message: string }     // validation / parse failure
+{ type: "presence", clients: number }  // observer count, on every join/leave
 ```
 
 ### Client → server (`ClientMessage`)

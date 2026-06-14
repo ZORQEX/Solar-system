@@ -31,7 +31,9 @@ export type ServerMessage =
     }
   | { type: "info"; message: string }
   | { type: "ack"; command: ClientMessage["type"] }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  /** Number of clients currently observing the universe. */
+  | { type: "presence"; clients: number };
 
 /** Messages clients send to the server. */
 export type ClientMessage =

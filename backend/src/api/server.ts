@@ -139,7 +139,17 @@ export class UniverseServer {
         clientId: socket.clientId,
         active: this.metrics.wsActive,
       });
+      this.broadcastPresence();
     });
+
+    // Let everyone (including the newcomer) know the current observer count.
+    this.broadcastPresence();
+  }
+
+  private broadcastPresence(): void {
+    // Use the metrics counter: on disconnect the ws client set may not have
+    // dropped the closing socket yet, but wsActive is already decremented.
+    this.broadcast({ type: "presence", clients: this.metrics.wsActive });
   }
 
   private handleMessage(socket: IdentifiedSocket, raw: RawData): void {

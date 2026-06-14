@@ -195,6 +195,29 @@ test("an addBody command is acked and broadcast to observers", async () => {
   });
 });
 
+test("observers are notified of presence when clients join and leave", async () => {
+  await withServer(async (port) => {
+    const a = new WsClient(`ws://localhost:${port}`);
+    await a.open();
+    await a.next((m) => m.type === "welcome");
+    // First client should see presence of 1 (itself).
+    const p1 = await a.next((m) => m.type === "presence");
+    if (p1.type === "presence") assert.equal(p1.clients, 1);
+
+    // A second client joins → first client sees the count rise.
+    const b = new WsClient(`ws://localhost:${port}`);
+    await b.open();
+    const p2 = await a.next((m) => m.type === "presence" && m.clients === 2);
+    assert.equal(p2.type, "presence");
+
+    // …and leaves → the count falls back.
+    b.close();
+    const p3 = await a.next((m) => m.type === "presence" && m.clients === 1);
+    assert.equal(p3.type, "presence");
+    a.close();
+  });
+});
+
 test("malformed JSON over WebSocket yields an error message, not a crash", async () => {
   await withServer(async (port) => {
     const client = new WsClient(`ws://localhost:${port}`);
