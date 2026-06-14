@@ -32,6 +32,18 @@ export const SOLAR_RADIUS = 6.957e8;
 /** Mean radius of the Earth, m. */
 export const EARTH_RADIUS = 6.371e6;
 
+/** Luminosity of the Sun, W. */
+export const SOLAR_LUMINOSITY = 3.828e26;
+
+/** Effective surface temperature of the Sun, K. */
+export const SUN_SURFACE_TEMPERATURE = 5772;
+
+/** Stefan–Boltzmann constant, W m⁻² K⁻⁴. */
+export const STEFAN_BOLTZMANN = 5.670374419e-8;
+
+/** Mass below which an object cannot sustain hydrogen fusion (brown dwarf), kg. */
+export const HYDROGEN_BURNING_LIMIT = 0.08 * SOLAR_MASS;
+
 /** Seconds in a Julian year (365.25 days). */
 export const SECONDS_PER_YEAR = 365.25 * 24 * 3600;
 
