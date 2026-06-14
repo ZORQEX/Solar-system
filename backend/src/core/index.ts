@@ -21,4 +21,8 @@ export {
   totalMomentum,
   type EnergyOptions,
 } from "./energy.ts";
-export { PhysicsEngine, type EngineConfig } from "./physics-engine.ts";
+export {
+  PhysicsEngine,
+  type EngineConfig,
+  type ForceField,
+} from "./physics-engine.ts";

@@ -1,5 +1,11 @@
 import { Body, PhysicsEngine, type EngineConfig } from "../core/index.ts";
-import { Star, type Biosphere, type Civilization } from "../entities/index.ts";
+import {
+  Planet,
+  Star,
+  type Biosphere,
+  type Civilization,
+  type PlanetComposition,
+} from "../entities/index.ts";
 import { SECONDS_PER_YEAR } from "../shared.ts";
 import type { BodyData, ScenarioData } from "../shared.ts";
 
@@ -11,6 +17,16 @@ export interface StarSave {
   name?: string;
 }
 
+/** Serializable form of a Planet entity. */
+export interface PlanetSave {
+  id: string;
+  mass: number;
+  radius: number;
+  composition: PlanetComposition;
+  semiMajorAxis: number;
+  name?: string;
+}
+
 /** Complete, serializable save game. */
 export interface WorldSave {
   name: string;
@@ -18,6 +34,7 @@ export interface WorldSave {
   engine: EngineConfig;
   bodies: BodyData[];
   stars: StarSave[];
+  planets: PlanetSave[];
   biospheres: Biosphere[];
   civilizations: Civilization[];
 }
@@ -37,6 +54,7 @@ export class World {
   timeSeconds: number;
 
   readonly stars = new Map<string, Star>();
+  readonly planets = new Map<string, Planet>();
   readonly biospheres = new Map<string, Biosphere>();
   readonly civilizations = new Map<string, Civilization>();
 
@@ -48,6 +66,10 @@ export class World {
 
   registerStar(star: Star): void {
     this.stars.set(star.id, star);
+  }
+
+  registerPlanet(planet: Planet): void {
+    this.planets.set(planet.id, planet);
   }
 
   registerBiosphere(biosphere: Biosphere): void {
@@ -65,17 +87,14 @@ export class World {
   /**
    * Advance the slow, non-gravitational processes by `simSeconds`. Stars age;
    * when one crosses into a remnant stage its gravitating body is updated to
-   * match (type + radius). Biosphere aging is tracked here; its dynamics arrive
-   * with the evolution model in the AI module.
+   * match (type + radius). Life/civilization dynamics are driven separately by
+   * the life mod (AI module), which owns biosphere aging.
    */
   evolve(simSeconds: number): void {
     const years = simSeconds / SECONDS_PER_YEAR;
 
     for (const star of this.stars.values()) {
       if (star.evolve(years)) this.syncStarBody(star);
-    }
-    for (const bio of this.biospheres.values()) {
-      bio.ageYears += years;
     }
 
     this.timeSeconds += simSeconds;
@@ -99,12 +118,24 @@ export class World {
         ...(s.name !== undefined ? { name: s.name } : {}),
       });
     }
+    const planets: PlanetSave[] = [];
+    for (const p of this.planets.values()) {
+      planets.push({
+        id: p.id,
+        mass: p.mass,
+        radius: p.radius,
+        composition: p.composition,
+        semiMajorAxis: p.semiMajorAxis,
+        ...(p.name !== undefined ? { name: p.name } : {}),
+      });
+    }
     return {
       name: this.name,
       timeSeconds: this.timeSeconds,
       engine: { ...this.physics.config },
       bodies: this.physics.snapshot(),
       stars,
+      planets,
       biospheres: [...this.biospheres.values()].map((b) => ({ ...b })),
       civilizations: [...this.civilizations.values()].map((c) => ({ ...c })),
     };
@@ -125,6 +156,18 @@ export class World {
           mass: s.mass,
           ageYears: s.ageYears,
           ...(s.name !== undefined ? { name: s.name } : {}),
+        }),
+      );
+    }
+    for (const p of save.planets ?? []) {
+      world.registerPlanet(
+        new Planet({
+          id: p.id,
+          mass: p.mass,
+          radius: p.radius,
+          composition: p.composition,
+          semiMajorAxis: p.semiMajorAxis,
+          ...(p.name !== undefined ? { name: p.name } : {}),
         }),
       );
     }

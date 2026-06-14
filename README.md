@@ -4,19 +4,26 @@ A multithreaded universe simulator — realistic N-body physics, procedural worl
 emergent civilizations, multi-scale time, and a real-time 3D frontend — with a
 Node.js authoritative server.
 
-> Status: **core physics engine** implemented and tested. Entities, simulation
-> scheduler, AI, networking API, and the Three.js frontend are next.
+> Status: **all five modules implemented and tested** — physics core, entities,
+> simulation scheduler, REST + WebSocket server, AI/civilization evolution + mod
+> system, and a React + Three.js client. 70 backend tests; `vite build` green.
 
 ## Quick start
 
-Requires **Node ≥ 23.6** (the project runs TypeScript natively — no build step).
+Requires **Node ≥ 23.6** (the backend runs TypeScript natively — no build step).
 
 ```bash
 npm install
-npm test          # backend core test suite (Node built-in runner)
-npm run demo      # simulate one year of the solar system
-npm run typecheck # tsc --noEmit
+npm test            # backend test suite (Node built-in runner)
+npm run demo        # simulate one year of the solar system
+npm run demo:life   # watch life + a civilization emerge over billions of years
+npm run serve       # start the authoritative REST + WebSocket server (port 8080)
+npm run frontend    # start the 3D client (Vite dev server, port 5173)
+npm run typecheck   # tsc --noEmit
 ```
+
+Run `npm run serve` and `npm run frontend` together, then open the client to
+watch the universe live.
 
 ### Demo output
 
@@ -33,10 +40,16 @@ energy drift : 1.30e-6 %
 
 | Path | Contents |
 | --- | --- |
-| `shared/` | Physical constants (SI) and types shared by client + server |
-| `backend/src/core/` | The physics engine: `Vector3`, `Body`, Barnes–Hut `Octree`, softened gravity, Velocity-Verlet integrator, collisions/merges, `PhysicsEngine` |
-| `backend/tests/` | Energy/momentum conservation, orbit stability, octree accuracy, collisions |
-| `scripts/` | World generators + runnable demo |
+| `shared/` | Physical constants (SI), entity/protocol types, time scales — shared by client + server |
+| `backend/src/core/` | Physics engine: `Vector3`, `Body`, Barnes–Hut `Octree`, softened gravity, Velocity-Verlet integrator, collisions/merges, pluggable force fields |
+| `backend/src/entities/` | Seeded RNG, `Star` (evolution), `Planet` (habitability), life/civilization types, procedural generators |
+| `backend/src/simulation/` | Multi-scale time, `World` state, `Simulation` scheduler, save/load, mod hooks |
+| `backend/src/api/` | Authoritative REST + WebSocket `UniverseServer` |
+| `backend/src/ai/` | Neural networks + life/civilization evolution model |
+| `backend/src/mods/` | Mod system: life mod + example custom physics laws |
+| `frontend/` | React + Three.js client (orbital camera, GLSL shaders, Zustand store) |
+| `backend/tests/` | 70 tests: conservation laws, orbit stability, octree accuracy, evolution, server, mods |
+| `scripts/` | World generators + runnable demos + server entrypoint |
 | `data/` | Generated scenarios (e.g. `solar-system.json`) |
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the architecture, physics formulas, and conventions.

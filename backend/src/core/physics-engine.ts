@@ -7,6 +7,13 @@ import { energyReport, totalMomentum } from "./energy.ts";
 import { DEFAULT_SOFTENING, DEFAULT_THETA, G as DEFAULT_G } from "../shared.ts";
 import type { BodyData, EnergyReport, ScenarioData } from "../shared.ts";
 
+/**
+ * A custom physics law: returns the *extra* acceleration (m/s²) applied to
+ * `body`, on top of gravity. Mods register these to bend the rules — drag, a
+ * cosmological expansion term, a galactic potential, etc.
+ */
+export type ForceField = (body: Body, bodies: readonly Body[]) => Vector3;
+
 export interface EngineConfig {
   G: number;
   theta: number;
@@ -38,6 +45,9 @@ export class PhysicsEngine {
   /** Number of completed steps. */
   steps = 0;
 
+  /** Custom physics laws applied additively on top of gravity (see mods). */
+  readonly forceFields: ForceField[] = [];
+
   private accelInitialized = false;
 
   constructor(bodies: Body[] = [], config: Partial<EngineConfig> = {}) {
@@ -52,6 +62,22 @@ export class PhysicsEngine {
       softening: this.config.softening,
     };
   }
+
+  /**
+   * Recompute a(t) for every body: Barnes–Hut gravity plus any registered
+   * force fields. This is the single acceleration hook used everywhere the
+   * integrator needs forces, so custom laws are never skipped.
+   */
+  private readonly recompute = (bodies: readonly Body[]): void => {
+    computeAccelerations(bodies, this.gravityOptions());
+    if (this.forceFields.length === 0) return;
+    for (const b of bodies) {
+      if (!b.alive) continue;
+      let extra = Vector3.zero();
+      for (const field of this.forceFields) extra = extra.add(field(b, bodies));
+      b.acceleration = b.acceleration.add(extra);
+    }
+  };
 
   addBody(body: Body): void {
     this.bodies.push(body);
@@ -73,21 +99,19 @@ export class PhysicsEngine {
    * kick–drift–kick invariant always holds.
    */
   step(dt: number): void {
-    const opts = this.gravityOptions();
-
     if (!this.accelInitialized) {
-      computeAccelerations(this.bodies, opts);
+      this.recompute(this.bodies);
       this.accelInitialized = true;
     }
 
-    velocityVerletStep(this.bodies, dt, (bs) => computeAccelerations(bs, opts));
+    velocityVerletStep(this.bodies, dt, this.recompute);
 
     if (this.config.collisions) {
       const merged = resolveCollisions(this.bodies);
       if (merged > 0) {
         this.bodies = this.bodies.filter((b) => b.alive);
         // Body set changed: refresh a(t) for the next step's first kick.
-        computeAccelerations(this.bodies, opts);
+        this.recompute(this.bodies);
       }
     }
 

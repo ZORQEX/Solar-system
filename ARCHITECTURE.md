@@ -98,12 +98,31 @@ We simulate gravitational N-body dynamics.
 ## Commands
 
 ```bash
-npm test                 # run backend core tests (Node built-in runner)
-npm run demo             # run the mini solar-system demo
-npm run typecheck        # tsc --noEmit across workspaces
+npm test                 # run backend tests (Node built-in runner)
+npm run demo             # mini solar-system demo (orbits + energy conservation)
+npm run demo:life        # watch life + a civilization emerge over billions of years
+npm run serve            # start the authoritative REST + WebSocket server
+npm run frontend         # start the Vite dev server (3D client)
+npm run build:frontend   # production build of the client
+npm run typecheck        # tsc --noEmit (backend)
+npm run typecheck:frontend
 ```
 
 ## Status
 
-Implemented: `shared` constants/types, `backend/src/core` physics engine + tests,
-solar-system demo. Not yet: entities, simulation scheduler, AI, API, frontend.
+All five modules implemented, tested (70 backend tests, typecheck + `vite build`
+green):
+
+1. `backend/src/core` — Barnes–Hut N-body physics, Velocity-Verlet, collisions,
+   pluggable force fields.
+2. `backend/src/entities` — seeded RNG, stars (evolution), planets
+   (habitability), life/civilization types, procedural generators.
+3. `backend/src/simulation` — multi-scale time, world state, scheduler,
+   save/load, mod hooks.
+4. `backend/src/api` — authoritative REST + WebSocket server.
+5. `backend/src/ai` + `backend/src/mods` — neural nets, life/civilization
+   evolution, and a mod system (custom physics laws + rules).
+6. `frontend/` — React + Three.js client (orbital camera, shaders, live snapshots).
+
+Future directions: WebGPU compute for the N-body solver, Web Worker client-side
+prediction, richer civilization/diplomacy models, persistent multiplayer rooms.

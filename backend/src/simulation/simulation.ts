@@ -1,6 +1,7 @@
 import { World } from "./world.ts";
 import { TimeController } from "./time.ts";
-import { generateStarSystem, type StarSystem } from "../entities/index.ts";
+import { generateStarSystem, Rng, type StarSystem } from "../entities/index.ts";
+import type { Mod, ModContext } from "../mods/mod.ts";
 import type { ScenarioData } from "../shared.ts";
 
 export interface SimulationOptions {
@@ -10,6 +11,8 @@ export interface SimulationOptions {
   maxSubstepsPerStep?: number;
   /** Initial wall-clock → sim-time scale (sim seconds per real second). */
   timeScale?: number;
+  /** Seed for the deterministic RNG handed to mods. */
+  seed?: number;
 }
 
 export interface AdvanceReport {
@@ -42,15 +45,30 @@ export class Simulation {
   fixedDt: number;
   maxSubsteps: number;
 
+  readonly mods: Mod[] = [];
+  private readonly modContext: ModContext;
+
   constructor(world: World, options: SimulationOptions = {}) {
     this.world = world;
     this.fixedDt = options.fixedDt ?? DEFAULT_FIXED_DT;
     this.maxSubsteps = options.maxSubstepsPerStep ?? DEFAULT_MAX_SUBSTEPS;
     this.time = new TimeController(options.timeScale ?? 1);
+    this.modContext = { world, rng: new Rng(options.seed ?? 0x5eed) };
   }
 
   get timeSeconds(): number {
     return this.world.timeSeconds;
+  }
+
+  /**
+   * Register a mod. Its custom physics law (if any) is installed on the engine
+   * immediately, and its `onEvolve` hook fires on every subsequent span.
+   */
+  use(mod: Mod): this {
+    this.mods.push(mod);
+    if (mod.forceField) this.world.physics.forceFields.push(mod.forceField);
+    mod.onRegister?.(this.modContext);
+    return this;
   }
 
   /**
@@ -71,6 +89,8 @@ export class Simulation {
     }
     // Advance slow processes (and the canonical clock) by the full span.
     this.world.evolve(simSeconds);
+    // Then let mods react (life evolution, custom rules, …).
+    for (const mod of this.mods) mod.onEvolve?.(this.modContext, simSeconds);
 
     return { simSeconds, steps, dt };
   }
@@ -95,12 +115,13 @@ export class Simulation {
   ): Simulation {
     const world = World.fromScenario(system.scenario);
     world.registerStar(system.star);
+    for (const planet of system.planets) world.registerPlanet(planet);
     if (system.biosphere) world.registerBiosphere(system.biosphere);
     return new Simulation(world, options);
   }
 
   /** Convenience: generate a system from a seed and wrap it in a simulation. */
   static fromSeed(seed: number, options: SimulationOptions = {}): Simulation {
-    return Simulation.fromStarSystem(generateStarSystem(seed), options);
+    return Simulation.fromStarSystem(generateStarSystem(seed), { seed, ...options });
   }
 }
