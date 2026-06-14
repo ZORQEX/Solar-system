@@ -1,0 +1,26 @@
+{
+  "name": "universe-sim-2049",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Multithreaded universe simulator: N-body physics, procedural worlds, emergent civilizations.",
+  "workspaces": [
+    "shared",
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "test": "node --test \"backend/tests/**/*.test.ts\"",
+    "demo": "node scripts/demo-solar-system.ts",
+    "typecheck": "tsc -p backend/tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=23.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@types/node": "^22.19.21"
+  }
+}

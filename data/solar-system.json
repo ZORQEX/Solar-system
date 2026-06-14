@@ -1,0 +1,169 @@
+{
+  "name": "Solar System",
+  "description": "The Sun and eight planets on coplanar circular orbits (SI units).",
+  "softening": 10000000,
+  "bodies": [
+    {
+      "id": "sun",
+      "name": "Sun",
+      "type": "star",
+      "mass": 1.98847e+30,
+      "radius": 695700000,
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "velocity": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "color": "#ffd76a"
+    },
+    {
+      "id": "mercury",
+      "name": "Mercury",
+      "type": "planet",
+      "mass": 3.3011e+23,
+      "radius": 2439700,
+      "position": {
+        "x": 57910000000,
+        "y": 0,
+        "z": 0
+      },
+      "velocity": {
+        "x": 0,
+        "y": 47872.44412761746,
+        "z": 0
+      },
+      "color": "#9c8e7e"
+    },
+    {
+      "id": "venus",
+      "name": "Venus",
+      "type": "planet",
+      "mass": 4.8675e+24,
+      "radius": 6051800,
+      "position": {
+        "x": 108210000000,
+        "y": 0,
+        "z": 0
+      },
+      "velocity": {
+        "x": 0,
+        "y": 35021.011450926555,
+        "z": 0
+      },
+      "color": "#d9b38c"
+    },
+    {
+      "id": "earth",
+      "name": "Earth",
+      "type": "planet",
+      "mass": 5.9722e+24,
+      "radius": 6371000,
+      "position": {
+        "x": 149597870700,
+        "y": 0,
+        "z": 0
+      },
+      "velocity": {
+        "x": 0,
+        "y": 29785.142169221024,
+        "z": 0
+      },
+      "color": "#2e6fdb"
+    },
+    {
+      "id": "mars",
+      "name": "Mars",
+      "type": "planet",
+      "mass": 6.4171e+23,
+      "radius": 3389500,
+      "position": {
+        "x": 227920000000,
+        "y": 0,
+        "z": 0
+      },
+      "velocity": {
+        "x": 0,
+        "y": 24130.769170353764,
+        "z": 0
+      },
+      "color": "#c1440e"
+    },
+    {
+      "id": "jupiter",
+      "name": "Jupiter",
+      "type": "gas-giant",
+      "mass": 1.8982e+27,
+      "radius": 69911000,
+      "position": {
+        "x": 778570000000,
+        "y": 0,
+        "z": 0
+      },
+      "velocity": {
+        "x": 0,
+        "y": 13056.102493077608,
+        "z": 0
+      },
+      "color": "#c9a87c"
+    },
+    {
+      "id": "saturn",
+      "name": "Saturn",
+      "type": "gas-giant",
+      "mass": 5.6834e+26,
+      "radius": 58232000,
+      "position": {
+        "x": 1433530000000,
+        "y": 0,
+        "z": 0
+      },
+      "velocity": {
+        "x": 0,
+        "y": 9621.859044478946,
+        "z": 0
+      },
+      "color": "#e3d6a8"
+    },
+    {
+      "id": "uranus",
+      "name": "Uranus",
+      "type": "gas-giant",
+      "mass": 8.681e+25,
+      "radius": 25362000,
+      "position": {
+        "x": 2872460000000,
+        "y": 0,
+        "z": 0
+      },
+      "velocity": {
+        "x": 0,
+        "y": 6797.283574885623,
+        "z": 0
+      },
+      "color": "#9fd6e0"
+    },
+    {
+      "id": "neptune",
+      "name": "Neptune",
+      "type": "gas-giant",
+      "mass": 1.02413e+26,
+      "radius": 24622000,
+      "position": {
+        "x": 4495060000000,
+        "y": 0,
+        "z": 0
+      },
+      "velocity": {
+        "x": 0,
+        "y": 5433.687237913278,
+        "z": 0
+      },
+      "color": "#3b6fd6"
+    }
+  ]
+}
