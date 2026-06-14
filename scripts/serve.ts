@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { Simulation } from "../backend/src/simulation/index.ts";
-import { UniverseServer } from "../backend/src/api/index.ts";
+import { UniverseServer, createLogger, type LogLevel } from "../backend/src/api/index.ts";
 import { SECONDS_PER_DAY } from "../shared/src/constants.ts";
 import type { ScenarioData } from "../shared/src/types.ts";
 
@@ -28,7 +28,12 @@ if (seed !== null) {
   sim = Simulation.fromScenario(scenario, { timeScale: SECONDS_PER_DAY });
 }
 
-const server = new UniverseServer(sim);
+const logger = createLogger({
+  scope: "universe",
+  level: (process.env.LOG_LEVEL as LogLevel) ?? "info",
+  json: process.env.LOG_JSON === "1",
+});
+const server = new UniverseServer(sim, { logger });
 const actualPort = await server.listen(port);
 server.start();
 

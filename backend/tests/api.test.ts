@@ -2,14 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import WebSocket from "ws";
 import { Simulation } from "../src/simulation/index.ts";
-import { UniverseServer } from "../src/api/index.ts";
+import { UniverseServer, silentLogger } from "../src/api/index.ts";
 import type { ServerMessage } from "../src/shared.ts";
 
 /** Spin up a server on an ephemeral port, run `fn`, then tear everything down. */
 async function withServer(
   fn: (port: number, server: UniverseServer) => Promise<void>,
 ): Promise<void> {
-  const server = new UniverseServer(Simulation.fromSeed(777));
+  const server = new UniverseServer(Simulation.fromSeed(777), { logger: silentLogger });
   const port = await server.listen(0);
   try {
     await fn(port, server);

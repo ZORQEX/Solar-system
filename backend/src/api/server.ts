@@ -3,6 +3,8 @@ import { WebSocketServer, WebSocket, type RawData } from "ws";
 import { Body } from "../core/index.ts";
 import { Simulation, World } from "../simulation/index.ts";
 import { validateWorldSave } from "./validate-save.ts";
+import { createLogger, type Logger } from "./logger.ts";
+import { Metrics } from "./metrics.ts";
 import {
   PROTOCOL_VERSION,
   validateClientMessage,
@@ -14,6 +16,8 @@ import {
 export interface ServerOptions {
   /** Interval between simulation ticks when the loop is running (ms). */
   tickIntervalMs?: number;
+  /** Structured logger. Defaults to an info-level console logger. */
+  logger?: Logger;
 }
 
 interface IdentifiedSocket extends WebSocket {
@@ -39,10 +43,13 @@ export class UniverseServer {
   private lastTickAt = 0;
   private nextClientId = 1;
   private readonly startedAt = Date.now();
+  readonly logger: Logger;
+  readonly metrics = new Metrics();
 
   constructor(simulation: Simulation, options: ServerOptions = {}) {
     this.simulation = simulation;
     this.tickIntervalMs = options.tickIntervalMs ?? 1000 / 30; // ~30 Hz
+    this.logger = options.logger ?? createLogger({ scope: "server" });
     this.http = createServer((req, res) => this.handleHttp(req, res));
     this.wss = new WebSocketServer({ server: this.http });
     this.wss.on("connection", (socket) => this.handleConnection(socket));
@@ -89,6 +96,7 @@ export class UniverseServer {
 
   /** Advance the simulation by one real-time delta and broadcast the result. */
   tickOnce(realDeltaSeconds: number): void {
+    this.metrics.ticks += 1;
     const report = this.simulation.tick(realDeltaSeconds);
     this.broadcast({
       type: "snapshot",
@@ -110,6 +118,12 @@ export class UniverseServer {
 
   private handleConnection(socket: IdentifiedSocket): void {
     socket.clientId = `c${this.nextClientId++}`;
+    this.metrics.onConnect();
+    this.logger.info("client connected", {
+      clientId: socket.clientId,
+      active: this.metrics.wsActive,
+    });
+
     this.send(socket, {
       type: "welcome",
       protocol: PROTOCOL_VERSION,
@@ -119,6 +133,13 @@ export class UniverseServer {
     });
 
     socket.on("message", (raw) => this.handleMessage(socket, raw));
+    socket.on("close", () => {
+      this.metrics.onDisconnect();
+      this.logger.info("client disconnected", {
+        clientId: socket.clientId,
+        active: this.metrics.wsActive,
+      });
+    });
   }
 
   private handleMessage(socket: IdentifiedSocket, raw: RawData): void {
@@ -133,6 +154,7 @@ export class UniverseServer {
     try {
       const message = validateClientMessage(parsed);
       const broadcastSnapshot = this.applyCommand(message);
+      this.logger.debug("command", { clientId: socket.clientId, type: message.type });
       this.send(socket, { type: "ack", command: message.type });
       if (message.type === "requestState") {
         this.send(socket, {
@@ -145,10 +167,10 @@ export class UniverseServer {
         this.broadcastSnapshot();
       }
     } catch (err) {
-      this.send(socket, {
-        type: "error",
-        message: err instanceof Error ? err.message : "command failed",
-      });
+      this.metrics.commandErrors += 1;
+      const message = err instanceof Error ? err.message : "command failed";
+      this.logger.warn("command rejected", { clientId: socket.clientId, error: message });
+      this.send(socket, { type: "error", message });
     }
   }
 
@@ -157,6 +179,7 @@ export class UniverseServer {
    * change is worth broadcasting a fresh snapshot to all observers.
    */
   applyCommand(message: ClientMessage): boolean {
+    this.metrics.commandsApplied += 1;
     switch (message.type) {
       case "requestState":
         return false;
@@ -218,6 +241,17 @@ export class UniverseServer {
 
     if (method === "OPTIONS") return this.json(res, 204, null);
 
+    this.metrics.httpRequests += 1;
+    const startedAt = Date.now();
+    res.on("finish", () =>
+      this.logger.debug("http", {
+        method,
+        url,
+        status: res.statusCode,
+        ms: Date.now() - startedAt,
+      }),
+    );
+
     try {
       if (method === "GET" && url === "/api/health") {
         return this.json(res, 200, {
@@ -226,6 +260,9 @@ export class UniverseServer {
           clients: this.wss.clients.size,
           ...this.worldInfo(),
         });
+      }
+      if (method === "GET" && url === "/api/metrics") {
+        return this.json(res, 200, { ...this.metrics.snapshot(), world: this.worldInfo() });
       }
       if (method === "GET" && url === "/api/state") {
         return this.json(res, 200, {
@@ -239,6 +276,7 @@ export class UniverseServer {
       if (method === "POST" && url === "/api/load") {
         const save = validateWorldSave(await this.readJson(req));
         this.simulation = new Simulation(World.fromSave(save));
+        this.logger.info("world loaded", { bodies: this.simulation.world.physics.count });
         this.broadcastSnapshot();
         return this.json(res, 200, { status: "loaded", world: this.worldInfo() });
       }
