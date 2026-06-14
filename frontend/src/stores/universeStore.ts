@@ -6,6 +6,7 @@ export type ConnectionStatus = "disconnected" | "connecting" | "connected";
 
 interface UniverseState {
   status: ConnectionStatus;
+  serverUrl: string;
   worldName: string;
   timeSeconds: number;
   bodies: BodyData[];
@@ -16,6 +17,7 @@ interface UniverseState {
 
   // actions
   connect: (url: string) => void;
+  reconnect: () => void;
   disconnect: () => void;
   select: (id: string | null) => void;
   setTimeScale: (scale: number) => void;
@@ -24,8 +26,11 @@ interface UniverseState {
   spawnAsteroid: () => void;
 }
 
-/** Internal, non-reactive handle to the live connection. */
+/** Internal, non-reactive connection handle + auto-reconnect bookkeeping. */
 let connection: Connection | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let intentionalClose = false;
+const RECONNECT_DELAY_MS = 2000;
 
 export const useUniverseStore = create<UniverseState>((set, get) => {
   const handleServerMessage = (message: ServerMessage): void => {
@@ -55,6 +60,7 @@ export const useUniverseStore = create<UniverseState>((set, get) => {
 
   return {
     status: "disconnected",
+    serverUrl: "",
     worldName: "—",
     timeSeconds: 0,
     bodies: [],
@@ -64,16 +70,40 @@ export const useUniverseStore = create<UniverseState>((set, get) => {
     lastInfo: "",
 
     connect: (url) => {
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      intentionalClose = false;
       connection?.close();
-      set({ status: "connecting" });
+      set({ status: "connecting", serverUrl: url });
       connection = new Connection(url, {
         onMessage: handleServerMessage,
         onOpen: () => set({ status: "connected" }),
-        onClose: () => set({ status: "disconnected" }),
+        onClose: () => {
+          set({ status: "disconnected" });
+          // Auto-reconnect unless the user disconnected on purpose.
+          if (!intentionalClose && reconnectTimer === null) {
+            reconnectTimer = setTimeout(() => {
+              reconnectTimer = null;
+              get().connect(url);
+            }, RECONNECT_DELAY_MS);
+          }
+        },
       });
     },
 
+    reconnect: () => {
+      const { serverUrl } = get();
+      if (serverUrl) get().connect(serverUrl);
+    },
+
     disconnect: () => {
+      intentionalClose = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
       connection?.close();
       connection = null;
       set({ status: "disconnected" });

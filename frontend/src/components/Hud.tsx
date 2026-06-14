@@ -20,11 +20,19 @@ export function Hud() {
   const timeSeconds = useUniverseStore((s) => s.timeSeconds);
   const bodyCount = useUniverseStore((s) => s.bodies.length);
   const lastInfo = useUniverseStore((s) => s.lastInfo);
+  const reconnect = useUniverseStore((s) => s.reconnect);
 
   return (
     <div className="hud">
       <h1>{worldName}</h1>
-      <div className={`status status--${status}`}>{STATUS_LABEL[status]}</div>
+      <div className={`status status--${status}`}>
+        {STATUS_LABEL[status]}
+        {status === "disconnected" && (
+          <button className="hud__reconnect" onClick={() => reconnect()}>
+            reconnect
+          </button>
+        )}
+      </div>
       <dl>
         <dt>sim time</dt>
         <dd>{formatSimTime(timeSeconds)}</dd>

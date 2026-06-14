@@ -3,6 +3,7 @@ import { SceneView } from "./components/SceneView.tsx";
 import { Hud } from "./components/Hud.tsx";
 import { ControlPanel } from "./components/ControlPanel.tsx";
 import { BodyList } from "./components/BodyList.tsx";
+import { DetailsPanel } from "./components/DetailsPanel.tsx";
 import { useUniverseStore } from "./stores/universeStore.ts";
 
 function serverUrl(): string {
@@ -25,6 +26,7 @@ export function App() {
     <div className="app">
       <SceneView />
       <Hud />
+      <DetailsPanel />
       <BodyList />
       <ControlPanel />
     </div>
