@@ -117,6 +117,40 @@ test("REST /api/command rejects an invalid time scale", async () => {
   });
 });
 
+test("REST /api/command rejects an addBody with a malformed body", async () => {
+  await withServer(async (port) => {
+    const res = await fetch(`http://localhost:${port}/api/command`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "addBody", body: { id: "x" } }),
+    });
+    assert.equal(res.status, 400);
+  });
+});
+
+test("REST /api/load rejects a structurally invalid save", async () => {
+  await withServer(async (port) => {
+    const res = await fetch(`http://localhost:${port}/api/load`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ not: "a save" }),
+    });
+    assert.equal(res.status, 400);
+  });
+});
+
+test("WebSocket reports a validation error for a malformed command", async () => {
+  await withServer(async (port) => {
+    const client = new WsClient(`ws://localhost:${port}`);
+    await client.open();
+    await client.next((m) => m.type === "welcome");
+    client.send({ type: "setTimeScale", scale: "fast" });
+    const err = await client.next((m) => m.type === "error");
+    assert.equal(err.type, "error");
+    client.close();
+  });
+});
+
 test("WebSocket client receives a welcome with a snapshot", async () => {
   await withServer(async (port) => {
     const client = new WsClient(`ws://localhost:${port}`);

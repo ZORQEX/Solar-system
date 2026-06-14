@@ -37,6 +37,16 @@ function nextStage(stage: BiosphereStage): BiosphereStage {
   return BIOSPHERE_STAGES[Math.min(i + 1, BIOSPHERE_STAGES.length - 1)]!;
 }
 
+/** Step a biosphere back one stage, but never below an established microbial floor. */
+function regressStage(stage: BiosphereStage): BiosphereStage {
+  const floor = BIOSPHERE_STAGES.indexOf("microbial");
+  const i = BIOSPHERE_STAGES.indexOf(stage);
+  return BIOSPHERE_STAGES[Math.max(floor, i - 1)]!;
+}
+
+/** Mean interval (years) between mass-extinction events on a living world. */
+const MEAN_EXTINCTION_YEARS = 2e8;
+
 /**
  * Advance one biosphere by `years`. Progress is gated by the planet's
  * habitability: a comfortable world races through the stages, a marginal one
@@ -56,6 +66,14 @@ export function evolveBiosphere(
   if (hab <= 0) {
     bio.biomassFraction *= Math.exp(-years / 5e8); // hostile: life recedes
     return bio.stage;
+  }
+
+  // Rare catastrophes (impacts, supervolcanism, …) set life back. Applied
+  // before regrowth so a long span recovers within the same step.
+  const extinctionProb = 1 - Math.exp(-years / MEAN_EXTINCTION_YEARS);
+  if (rng.next() < extinctionProb) {
+    bio.biomassFraction *= 0.2;
+    if (rng.bool(0.3)) bio.stage = regressStage(bio.stage);
   }
 
   // Biomass saturates toward full coverage.
@@ -79,25 +97,44 @@ function isSentient(stage: BiosphereStage): boolean {
   return stage === "intelligent" || stage === "industrial" || stage === "spacefaring";
 }
 
+/** Conditions a civilization develops under. */
+export interface CivEnvironment {
+  /** Current home-world habitability [0, 1]. Low values cause decline. */
+  habitability?: number;
+  /** Optional behaviour network modulating the growth drive. */
+  brain?: NeuralNetwork;
+}
+
 /**
- * Advance one civilization by `years`: logistic population growth toward a
- * Kardashev-scaled carrying capacity, saturating tech, and a Kardashev level
- * derived from tech. An optional `brain` network modulates the growth drive
- * (a tiny example of AI-driven entity behaviour).
+ * Advance one civilization by `years`. On a thriving world: logistic population
+ * growth toward a Kardashev-scaled carrying capacity, saturating tech, and a
+ * Kardashev level derived from tech. On a hostile world (e.g. after its star
+ * dies) the civilization declines and loses knowledge — and may collapse.
  */
 export function evolveCivilization(
   civ: Civilization,
   years: number,
-  brain?: NeuralNetwork,
+  env: CivEnvironment = {},
 ): void {
+  const hab = env.habitability ?? 1;
+
+  if (hab <= 0.05) {
+    // Home world no longer supports it: population crashes, tech slowly lost.
+    civ.population *= Math.exp(-years / 2e7);
+    civ.techLevel *= Math.exp(-years / 5e8);
+    civ.kardashev = Math.min(civ.kardashev, civ.techLevel / 33.3);
+    return;
+  }
+
   const capacity = 1e10 * (1 + 5 * civ.kardashev);
 
-  let drive = 1;
-  if (brain) {
+  // Growth drive scales with habitability, optionally shaped by a brain net.
+  let drive = hab;
+  if (env.brain) {
     const popNorm = Math.min(1, civ.population / capacity);
     const techNorm = Math.min(1, civ.techLevel / 100);
-    const out = brain.forward([civ.kardashev / 3, popNorm, techNorm]);
-    drive = 0.5 + (out[0]! + 1) / 2; // tanh(-1..1) -> 0.5..1.5
+    const out = env.brain.forward([civ.kardashev / 3, popNorm, techNorm]);
+    drive *= 0.5 + (out[0]! + 1) / 2; // tanh(-1..1) -> 0.5..1.5
   }
 
   // Logistic population (Euler step, clamped so big spans stay well-behaved).
@@ -110,9 +147,12 @@ export function evolveCivilization(
 
   // Tech saturates toward a cap; Kardashev follows tech.
   const techCap = 100;
-  civ.techLevel += (techCap - civ.techLevel) * (1 - Math.exp(-years / (5e5 / drive)));
+  civ.techLevel += (techCap - civ.techLevel) * (1 - Math.exp(-years / (5e5 / Math.max(drive, 1e-3))));
   civ.kardashev = Math.min(3, civ.techLevel / 33.3);
 }
+
+/** Population below which a civilization is considered collapsed and removed. */
+const COLLAPSE_POPULATION = 100;
 
 /**
  * Advance all life in a world by `years`: evolve every biosphere, spawn a
@@ -144,7 +184,13 @@ export function advanceLife(world: LifeWorld, years: number, rng: Rng): void {
     }
   }
 
+  const collapsed: string[] = [];
   for (const civ of world.civilizations.values()) {
-    evolveCivilization(civ, years);
+    const planet = world.planets.get(civ.homePlanetId);
+    const habitability = planet ? planet.habitabilityScore(starLuminosity) : 0;
+    evolveCivilization(civ, years, { habitability });
+    if (civ.population < COLLAPSE_POPULATION) collapsed.push(civ.id);
   }
+  // Remove collapsed civilizations after the loop (don't mutate while iterating).
+  for (const id of collapsed) world.civilizations.delete(id);
 }

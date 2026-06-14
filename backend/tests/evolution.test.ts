@@ -60,6 +60,42 @@ test("a civilization grows in population, tech and Kardashev level", () => {
   assert.ok(civ.kardashev > 0 && civ.kardashev <= 3);
 });
 
+test("mass extinctions knock biomass down over a long history", () => {
+  const bio = createBiosphere("earth");
+  bio.biomassFraction = 1;
+  bio.stage = "complex";
+  const planet = earth();
+  const rng = new Rng(123);
+
+  let minBiomass = 1;
+  for (let i = 0; i < 200; i++) {
+    evolveBiosphere(bio, planet, SOLAR_LUMINOSITY, 1e7, rng);
+    minBiomass = Math.min(minBiomass, bio.biomassFraction);
+  }
+  // At least one catastrophe should have dented the biosphere.
+  assert.ok(minBiomass < 0.95, `expected a biomass dip, min was ${minBiomass}`);
+});
+
+test("a civilization declines and collapses when its home world turns hostile", () => {
+  const civ: Civilization = {
+    id: "c",
+    homePlanetId: "earth",
+    name: "Doomed",
+    kardashev: 2,
+    population: 1e9,
+    techLevel: 80,
+  };
+
+  // Hostile environment (e.g. the star has died): population crashes.
+  let collapsed = false;
+  for (let i = 0; i < 80 && !collapsed; i++) {
+    evolveCivilization(civ, 1e7, { habitability: 0 });
+    if (civ.population < 100) collapsed = true;
+  }
+  assert.ok(collapsed, "population should crash below the collapse threshold");
+  assert.ok(civ.techLevel < 80, "knowledge should erode");
+});
+
 test("a brain network modulates civilization growth deterministically", () => {
   const make = (): Civilization => ({
     id: "c",

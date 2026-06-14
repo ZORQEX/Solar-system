@@ -31,21 +31,24 @@ world.registerBiosphere(createBiosphere("earth"));
 const sim = new Simulation(world, { seed: 2049 });
 sim.use(createLifeMod());
 
-console.log("  Gyr   biosphere       biomass  civ(K-level, pop)");
-const chunkYears = 5e8; // 0.5 Gyr
-for (let gyr = 0.5; gyr <= 8; gyr += 0.5) {
+const star = world.stars.get("star")!;
+console.log("  Gyr   star            biosphere       biomass  civ(K-level, pop)");
+const chunkYears = 1e9; // 1 Gyr
+for (let gyr = 1; gyr <= 13; gyr += 1) {
   sim.simulate(chunkYears * SECONDS_PER_YEAR);
   const bio = world.biospheres.get("earth")!;
   const civ = [...world.civilizations.values()][0];
   const civStr = civ
     ? `K${civ.kardashev.toFixed(2)}, ${civ.population.toExponential(2)}`
-    : "—";
+    : "— (none)";
   console.log(
-    `  ${gyr.toFixed(1).padStart(3)}   ${bio.stage.padEnd(14)}  ${bio.biomassFraction
-      .toFixed(2)
-      .padStart(5)}    ${civStr}`,
+    `  ${gyr.toFixed(0).padStart(3)}   ${star.stage().padEnd(14)}  ${bio.stage.padEnd(
+      14,
+    )}  ${bio.biomassFraction.toFixed(2).padStart(5)}    ${civStr}`,
   );
 }
 
-const star = world.stars.get("star")!;
-console.log(`\nstar after ${(world.timeSeconds / SECONDS_PER_YEAR / 1e9).toFixed(1)} Gyr: ${star.stage()}`);
+console.log(
+  `\nAfter ${(world.timeSeconds / SECONDS_PER_YEAR / 1e9).toFixed(1)} Gyr the star is a ${star.stage()} ` +
+    `and its world is ${world.civilizations.size === 0 ? "lifeless" : "still inhabited"}.`,
+);

@@ -1,9 +1,11 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { WebSocketServer, WebSocket, type RawData } from "ws";
 import { Body } from "../core/index.ts";
-import { Simulation, World, type WorldSave } from "../simulation/index.ts";
+import { Simulation, World } from "../simulation/index.ts";
+import { validateWorldSave } from "./validate-save.ts";
 import {
   PROTOCOL_VERSION,
+  validateClientMessage,
   type ClientMessage,
   type ServerMessage,
   type WorldInfo,
@@ -120,15 +122,16 @@ export class UniverseServer {
   }
 
   private handleMessage(socket: IdentifiedSocket, raw: RawData): void {
-    let message: ClientMessage;
+    let parsed: unknown;
     try {
-      message = JSON.parse(raw.toString()) as ClientMessage;
+      parsed = JSON.parse(raw.toString());
     } catch {
       this.send(socket, { type: "error", message: "invalid JSON" });
       return;
     }
 
     try {
+      const message = validateClientMessage(parsed);
       const broadcastSnapshot = this.applyCommand(message);
       this.send(socket, { type: "ack", command: message.type });
       if (message.type === "requestState") {
@@ -234,13 +237,13 @@ export class UniverseServer {
         return this.json(res, 200, this.simulation.world.toSave());
       }
       if (method === "POST" && url === "/api/load") {
-        const save = (await this.readJson(req)) as WorldSave;
+        const save = validateWorldSave(await this.readJson(req));
         this.simulation = new Simulation(World.fromSave(save));
         this.broadcastSnapshot();
         return this.json(res, 200, { status: "loaded", world: this.worldInfo() });
       }
       if (method === "POST" && url === "/api/command") {
-        const command = (await this.readJson(req)) as ClientMessage;
+        const command = validateClientMessage(await this.readJson(req));
         const broadcast = this.applyCommand(command);
         if (broadcast) this.broadcastSnapshot();
         return this.json(res, 200, { status: "ok", world: this.worldInfo() });

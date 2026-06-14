@@ -12,4 +12,5 @@ export {
   evolveBiosphere,
   evolveCivilization,
   type LifeWorld,
+  type CivEnvironment,
 } from "./evolution.ts";
