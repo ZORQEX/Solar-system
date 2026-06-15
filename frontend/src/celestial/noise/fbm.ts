@@ -24,8 +24,8 @@ float fractal3(
   for (int i = 0; i < 32; i++) {
     if (i >= octaves) { break; } // dynamic loop bound (GLSL ES 1.0 needs const max)
     n += a * simplex3(v / P);
+    max_amp += a;        // include this octave before reducing → result ~[-1, 1]
     a *= persistence;
-    max_amp += a;
     P /= lacunarity;
   }
   return n / max(max_amp, 1e-5);
@@ -42,17 +42,21 @@ float terrainHeight(
   float lacunarity,
   int octaves
 ) {
-  float h = 0.0;
+  // Shape the noise into [0, ~1] FIRST, then apply amplitude exactly once.
+  // (Applying amplitude before the shaping — as the reference does at its
+  // radius-20 scale — collapses the range to a near-constant when amplitude is
+  // small, as it is here, giving flat featureless planets.)
+  float shaped = 0.0;
   if (type == 1) {
-    h = amplitude * simplex3(v / period);
+    shaped = simplex3(v / period) * 0.5 + 0.5;                          // [0, 1]
   } else if (type == 2) {
-    h = amplitude * fractal3(v, sharpness, period, persistence, lacunarity, octaves);
-    h = amplitude * pow(max(0.0, (h + 1.0) / 2.0), sharpness);
+    float n = fractal3(v, sharpness, period, persistence, lacunarity, octaves);
+    shaped = pow(max(0.0, (n + 1.0) * 0.5), sharpness);                 // billowy
   } else if (type == 3) {
-    h = fractal3(v, sharpness, period, persistence, lacunarity, octaves);
-    h = amplitude * pow(max(0.0, 1.0 - abs(h)), sharpness);
+    float n = fractal3(v, sharpness, period, persistence, lacunarity, octaves);
+    shaped = pow(max(0.0, 1.0 - abs(n)), sharpness);                    // ridged
   }
-  return max(0.0, h + offset);
+  return max(0.0, amplitude * shaped + offset);
 }
 
 // Cloud coverage in [0, 1] from a few octaves of simplex.

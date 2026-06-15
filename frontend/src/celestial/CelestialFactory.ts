@@ -288,15 +288,18 @@ export class CelestialFactory {
 
   /**
    * Visual radius: the type's base `displayRadius` scaled by this body's SI
-   * radius relative to the largest of its type, clamped to [0.6, 1.0]× so a body
-   * never goes sub-pixel or exceeds the base. (Stars/black-holes are rendered by
-   * SimpleBody at the fixed base size and don't go through here.)
+   * radius relative to the largest of its type, clamped to [0.4, 1.0]× so a body
+   * never goes sub-pixel or exceeds the base. Gas giants get a ×1.4 legibility
+   * boost so they read as dominant even at large orbital distances — a
+   * deliberate non-physical choice (displayRadius itself is left untouched).
+   * (Stars/black-holes are rendered by SimpleBody at base size, not via here.)
    */
   private scaledRadius(body: BodyData): number {
-    const base = displayRadius(body);
+    const typeBoost = body.type === "gas-giant" ? 1.4 : 1.0;
+    const base = displayRadius(body) * typeBoost;
     const maxR = this.maxRadiusByType.get(body.type) ?? body.radius;
     const factor = maxR > 0 ? body.radius / maxR : 1;
-    return base * Math.min(1.0, Math.max(0.6, factor));
+    return base * Math.min(1.0, Math.max(0.4, factor));
   }
 
   private ensureBelt(): AsteroidBelt {
