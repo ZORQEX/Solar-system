@@ -122,7 +122,14 @@ green):
 4. `backend/src/api` — authoritative REST + WebSocket server.
 5. `backend/src/ai` + `backend/src/mods` — neural nets, life/civilization
    evolution, and a mod system (custom physics laws + rules).
-6. `frontend/` — React + Three.js client (orbital camera, shaders, live snapshots).
+6. `frontend/` — React + Three.js client (orbital camera, shaders, live snapshots,
+   selected-body details, save/load, observer presence, Web Worker prediction,
+   WebGPU N-body accelerator).
 
-Future directions: WebGPU compute for the N-body solver, Web Worker client-side
-prediction, richer civilization/diplomacy models, persistent multiplayer rooms.
+Also implemented: structured logging + `/api/metrics`, optional token auth
+(REST + WebSocket), input validation at the server boundary, multiplayer
+presence, extra scenarios (binary star, asteroid belt, galaxy, figure-eight),
+and Docker/compose deployment. See `docs/` for details.
+
+Future directions: spatial-hash collision broad-phase, Barnes–Hut on the GPU,
+richer civilization/diplomacy models, persistent multiplayer rooms.
