@@ -62,48 +62,103 @@ const STYLES: Record<PlanetSubtype, SubtypeStyle> = {
 const TRANSITION_FRACTIONS: readonly [number, number, number, number] = [0.15, 0.4, 0.65, 0.9];
 const BLEND_FRACTION = 0.08;
 
-/** FNV-1a hash of the body id → stable uint32, the basis for deterministic seeds. */
+/** FNV-1a over the id, mixing in each char's position and a large prime. */
 function hashId(id: string): number {
   let h = 2166136261 >>> 0;
   for (let i = 0; i < id.length; i++) {
-    h ^= id.charCodeAt(i);
+    h ^= Math.imul(id.charCodeAt(i), 0x9e3779b1) ^ i;
     h = Math.imul(h, 16777619);
   }
   return h >>> 0;
 }
 
-function seedVec(id: string): THREE.Vector3 {
-  const h = hashId(id);
-  const a = (h & 0xffff) / 0xffff;
-  const b = ((h >>> 8) & 0xffff) / 0xffff;
-  const c = ((h >>> 16) & 0xffff) / 0xffff;
-  return new THREE.Vector3(a * 100, b * 100, c * 100);
+/** splitmix32-style finalizer — fully decorrelates an integer hash. */
+function mix32(x: number): number {
+  let h = x >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x7feb352d);
+  h = Math.imul(h ^ (h >>> 15), 0x846ca68b);
+  return (h ^ (h >>> 16)) >>> 0;
 }
 
+/** Three well-separated noise offsets (each from an independently-salted mix). */
+function seedVec(id: string): THREE.Vector3 {
+  const h = hashId(id);
+  const x = mix32(h ^ 0x9e3779b9) / 4294967296;
+  const y = mix32(h ^ 0x85ebca6b) / 4294967296;
+  const z = mix32(h ^ 0xc2b2ae35) / 4294967296;
+  return new THREE.Vector3(x * 200, y * 200, z * 200);
+}
+
+/** Per-instance asteroid seed, well spread across 0..100. */
 function seedFloat(id: string): number {
-  return (hashId(id) % 100000) / 1000; // 0..100
+  return (mix32(hashId(id)) / 4294967296) * 100;
+}
+
+/** Deterministic 0..1 value from the id, for parameter jitter. */
+function seedUnit(id: string): number {
+  return mix32(hashId(id) ^ 0x27d4eb2f) / 4294967296;
 }
 
 function color(rgb: RGB): THREE.Color {
   return new THREE.Color(rgb[0], rgb[1], rgb[2]);
 }
 
+/** A soft radial glow texture (white-yellow core → transparent), generated once. */
+function makeGlowTexture(): THREE.Texture {
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+    g.addColorStop(0.0, "rgba(255, 245, 204, 1.0)");
+    g.addColorStop(0.3, "rgba(255, 240, 180, 0.55)");
+    g.addColorStop(1.0, "rgba(255, 230, 150, 0.0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
+
 /**
  * A plain lit/emissive sphere for body kinds the procedural module doesn't
- * specialise (stars, remnants, generic). Lit by the scene's existing lights.
+ * specialise (stars, remnants, generic). Luminous bodies also get an additive
+ * billboard glow halo (replacing the renderer's old star glow).
  */
 class SimpleBody implements CelestialObject {
   readonly object3D: THREE.Mesh;
   private readonly geometry: THREE.SphereGeometry;
   private readonly material: THREE.Material;
+  private glowTexture: THREE.Texture | null = null;
+  private glowMaterial: THREE.SpriteMaterial | null = null;
 
   constructor(body: BodyData) {
-    this.geometry = new THREE.SphereGeometry(displayRadius(body), 32, 24);
+    const radius = displayRadius(body);
+    this.geometry = new THREE.SphereGeometry(radius, 32, 24);
     const c = bodyColor(body);
-    this.material = isLuminous(body)
+    const luminous = isLuminous(body);
+    this.material = luminous
       ? new THREE.MeshBasicMaterial({ color: c })
       : new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, metalness: 0.1 });
     this.object3D = new THREE.Mesh(this.geometry, this.material);
+
+    if (luminous) {
+      this.glowTexture = makeGlowTexture();
+      this.glowMaterial = new THREE.SpriteMaterial({
+        map: this.glowTexture,
+        color: 0xfff5cc,
+        transparent: true,
+        opacity: 0.6,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const glow = new THREE.Sprite(this.glowMaterial);
+      glow.scale.setScalar(radius * 5); // soft halo ~2.5× the star radius
+      this.object3D.add(glow); // Sprite auto-faces the camera
+    }
   }
 
   update(): void {
@@ -113,6 +168,8 @@ class SimpleBody implements CelestialObject {
   dispose(): void {
     this.geometry.dispose();
     this.material.dispose();
+    this.glowTexture?.dispose();
+    this.glowMaterial?.dispose();
   }
 }
 
@@ -126,6 +183,8 @@ export class CelestialFactory {
   private readonly objects = new Map<string, CelestialObject>();
   private readonly beltIds = new Set<string>();
   private belt: AsteroidBelt | null = null;
+  /** Largest SI radius seen per body type, for relative sizing within a group. */
+  private readonly maxRadiusByType = new Map<string, number>();
 
   constructor(private readonly scene: THREE.Scene) {}
 
@@ -135,6 +194,12 @@ export class CelestialFactory {
    */
   sync(bodies: readonly BodyData[]): void {
     const present = new Set<string>();
+
+    // Largest SI radius per type, so bodies can be sized relative to their peers.
+    this.maxRadiusByType.clear();
+    for (const b of bodies) {
+      this.maxRadiusByType.set(b.type, Math.max(this.maxRadiusByType.get(b.type) ?? 0, b.radius));
+    }
 
     for (const body of bodies) {
       present.add(body.id);
@@ -188,7 +253,7 @@ export class CelestialFactory {
       if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.z)) continue;
 
       if (body.type === "asteroid") {
-        this.belt?.setTransform(body.id, p, displayRadius(body));
+        this.belt?.setTransform(body.id, p, this.scaledRadius(body));
         continue;
       }
       const obj = this.objects.get(body.id);
@@ -220,6 +285,19 @@ export class CelestialFactory {
   }
 
   // --- internals -----------------------------------------------------------
+
+  /**
+   * Visual radius: the type's base `displayRadius` scaled by this body's SI
+   * radius relative to the largest of its type, clamped to [0.6, 1.0]× so a body
+   * never goes sub-pixel or exceeds the base. (Stars/black-holes are rendered by
+   * SimpleBody at the fixed base size and don't go through here.)
+   */
+  private scaledRadius(body: BodyData): number {
+    const base = displayRadius(body);
+    const maxR = this.maxRadiusByType.get(body.type) ?? body.radius;
+    const factor = maxR > 0 ? body.radius / maxR : 1;
+    return base * Math.min(1.0, Math.max(0.6, factor));
+  }
 
   private ensureBelt(): AsteroidBelt {
     if (!this.belt) {
@@ -271,6 +349,10 @@ export class CelestialFactory {
     const subtype = this.deriveSubtype(body);
     const style = STYLES[subtype];
     const terrain = { ...style.terrain };
+    // Per-body jitter so same-subtype worlds differ in feature scale + sea level.
+    const u = seedUnit(body.id);
+    terrain.period *= 0.75 + 0.5 * u;
+    terrain.offset += (u - 0.5) * 0.04 * terrain.amplitude;
     const amp = terrain.amplitude;
     const transitions: [number, number, number, number] = [
       TRANSITION_FRACTIONS[0] * amp,
@@ -292,7 +374,7 @@ export class CelestialFactory {
     };
     return {
       subtype,
-      radius: displayRadius(body),
+      radius: this.scaledRadius(body),
       seed: seedVec(body.id),
       terrain,
       palette,
@@ -305,7 +387,7 @@ export class CelestialFactory {
 
   private asteroidVisual(body: BodyData): AsteroidVisual {
     return {
-      radius: displayRadius(body),
+      radius: this.scaledRadius(body),
       seed: seedFloat(body.id),
       color: bodyColor(body),
       amplitude: 0.4,
