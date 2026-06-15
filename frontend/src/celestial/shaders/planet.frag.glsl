@@ -59,8 +59,11 @@ void main() {
   vec3 pos_dy = (vLocalPos + dy) * (uRadius * (1.0 + h_dy));
 
   vec3 bumpNormal = normalize(cross(pos_dx - pos, pos_dy - pos));
-  vec3 nLocal = normalize(mix(vNormal, bumpNormal, uBumpStrength));
-  vec3 N = normalize(mat3(modelMatrix) * nLocal); // world-space normal
+  // The planet mesh carries only a translation (terrain displacement lives in
+  // the shader), so its local normal already equals the world normal. (Note:
+  // modelMatrix is a vertex-only built-in — it is NOT available in fragment
+  // shaders, so we must not reference it here.)
+  vec3 N = normalize(mix(vNormal, bumpNormal, uBumpStrength));
 
   vec3 L = normalize(uSunPosition - vWorldPos);
   vec3 V = normalize(cameraPosition - vWorldPos);
