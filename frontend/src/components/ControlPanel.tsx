@@ -22,6 +22,8 @@ export function ControlPanel() {
   const resume = useUniverseStore((s) => s.resume);
   const setTimeScale = useUniverseStore((s) => s.setTimeScale);
   const spawnAsteroid = useUniverseStore((s) => s.spawnAsteroid);
+  const predictionEnabled = useUniverseStore((s) => s.predictionEnabled);
+  const togglePrediction = useUniverseStore((s) => s.togglePrediction);
   const fetchSave = useUniverseStore((s) => s.fetchSave);
   const loadWorld = useUniverseStore((s) => s.loadWorld);
 
@@ -66,6 +68,14 @@ export function ControlPanel() {
       </label>
 
       <button onClick={() => spawnAsteroid()}>☄ Fling asteroid</button>
+
+      <button
+        className={predictionEnabled ? "active" : ""}
+        onClick={() => togglePrediction()}
+        title="Smooth motion with a client-side predictive physics worker"
+      >
+        🔮 Predict: {predictionEnabled ? "on" : "off"}
+      </button>
 
       <span className="controls__sep" />
 

@@ -173,6 +173,7 @@ body,
   cursor: pointer;
 }
 .controls button:hover { border-color: var(--accent); }
+.controls button.active { border-color: var(--accent); color: var(--accent); }
 .controls__scale {
   display: flex;
   align-items: center;
