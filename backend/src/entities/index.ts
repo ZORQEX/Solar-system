@@ -16,7 +16,9 @@ export {
 export {
   generateStarSystem,
   generateStarCluster,
+  generateGalaxy,
   type StarSystem,
   type StarSystemOptions,
   type StarClusterOptions,
+  type GalaxyOptions,
 } from "./generators.ts";

@@ -1,0 +1,61 @@
+{
+  "name": "Binary Star",
+  "description": "Two suns and a circumbinary planet.",
+  "softening": 100000000,
+  "bodies": [
+    {
+      "id": "star-a",
+      "name": "Alpha",
+      "type": "star",
+      "mass": 1.98847e+30,
+      "radius": 695700000,
+      "position": {
+        "x": 14959787070,
+        "y": 0,
+        "z": 0
+      },
+      "velocity": {
+        "x": 0,
+        "y": 47094.4448433334,
+        "z": 0
+      },
+      "color": "#ffd76a"
+    },
+    {
+      "id": "star-b",
+      "name": "Beta",
+      "type": "star",
+      "mass": 1.98847e+30,
+      "radius": 695700000,
+      "position": {
+        "x": -14959787070,
+        "y": 0,
+        "z": 0
+      },
+      "velocity": {
+        "x": 0,
+        "y": -47094.4448433334,
+        "z": 0
+      },
+      "color": "#ffb56c"
+    },
+    {
+      "id": "planet",
+      "name": "Circe",
+      "type": "planet",
+      "mass": 5.97e+24,
+      "radius": 6370000,
+      "position": {
+        "x": 448793612100,
+        "y": 0,
+        "z": 0
+      },
+      "velocity": {
+        "x": 0,
+        "y": 24319.4667436152,
+        "z": 0
+      },
+      "color": "#2e6fdb"
+    }
+  ]
+}

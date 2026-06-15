@@ -13,6 +13,7 @@
     "test": "node --test \"backend/tests/**/*.test.ts\"",
     "demo": "node scripts/demo-solar-system.ts",
     "demo:life": "node scripts/demo-life.ts",
+    "generate:scenarios": "node scripts/generate-scenarios.ts",
     "serve": "node scripts/serve.ts",
     "frontend": "npm --workspace @universe-sim/frontend run dev",
     "build:frontend": "npm --workspace @universe-sim/frontend run build",

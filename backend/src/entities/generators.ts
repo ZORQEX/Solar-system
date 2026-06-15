@@ -234,3 +234,62 @@ export function generateStarCluster(
     bodies,
   };
 }
+
+export interface GalaxyOptions {
+  count: number;
+  /** Disk radius in metres. Defaults to ~30 kpc. */
+  radius?: number;
+  /** Central bulge mass in kg. Defaults to 1e10 solar masses. */
+  bulgeMass?: number;
+}
+
+/**
+ * A rotating, flattened disk galaxy: a massive central bulge with stars on
+ * near-circular orbits in a thin disk (rotation set by the enclosed bulge mass).
+ * A coarse but recognisable "Andromeda" — and a good large-N scenario.
+ */
+export function generateGalaxy(seed: number, options: GalaxyOptions): ScenarioData {
+  const rng = new Rng(seed);
+  const radius = options.radius ?? 9.26e20; // ~30 kpc
+  const bulgeMass = options.bulgeMass ?? 1e10 * SOLAR_MASS;
+  const bodies: BodyData[] = [
+    {
+      id: "bulge",
+      name: "Galactic bulge",
+      type: "black-hole",
+      mass: bulgeMass,
+      radius: radius * 0.02,
+      position: { x: 0, y: 0, z: 0 },
+      velocity: { x: 0, y: 0, z: 0 },
+      color: "#ffe8b0",
+    },
+  ];
+
+  for (let i = 0; i < options.count; i++) {
+    const massSolar = 0.1 * Math.pow(80, rng.next() ** 2);
+    const star = new Star({ id: `g-star${i}`, mass: massSolar * SOLAR_MASS });
+
+    // Thin disk: areal-uniform radius, random angle, small vertical scatter.
+    const r = radius * (0.04 + 0.96 * Math.sqrt(rng.next()));
+    const theta = rng.range(0, 2 * Math.PI);
+    const z = rng.gaussian(0, radius * 0.02);
+    const v = Math.sqrt((G * bulgeMass) / r); // circular about the bulge
+
+    bodies.push({
+      id: star.id,
+      type: "star",
+      mass: star.initialMass,
+      radius: star.radiusMeters(),
+      position: { x: r * Math.cos(theta), y: r * Math.sin(theta), z },
+      velocity: { x: -v * Math.sin(theta), y: v * Math.cos(theta), z: 0 },
+      color: starColor(star),
+    });
+  }
+
+  return {
+    name: `Galaxy (${options.count} stars)`,
+    description: `Procedurally generated disk galaxy (seed ${seed}).`,
+    softening: radius / 2000,
+    bodies,
+  };
+}

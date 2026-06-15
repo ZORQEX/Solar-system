@@ -1,0 +1,62 @@
+{
+  "name": "Figure-Eight (3-body)",
+  "description": "A stable three-body choreography (G=1).",
+  "G": 1,
+  "softening": 0,
+  "bodies": [
+    {
+      "id": "a",
+      "name": "A",
+      "type": "star",
+      "mass": 1,
+      "radius": 0.02,
+      "position": {
+        "x": 0.97000436,
+        "y": -0.24308753,
+        "z": 0
+      },
+      "velocity": {
+        "x": 0.466203685,
+        "y": 0.43236573,
+        "z": 0
+      },
+      "color": "#ff6a6a"
+    },
+    {
+      "id": "b",
+      "name": "B",
+      "type": "star",
+      "mass": 1,
+      "radius": 0.02,
+      "position": {
+        "x": -0.97000436,
+        "y": 0.24308753,
+        "z": 0
+      },
+      "velocity": {
+        "x": 0.466203685,
+        "y": 0.43236573,
+        "z": 0
+      },
+      "color": "#6aff8c"
+    },
+    {
+      "id": "c",
+      "name": "C",
+      "type": "star",
+      "mass": 1,
+      "radius": 0.02,
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "velocity": {
+        "x": -0.93240737,
+        "y": -0.86473146,
+        "z": 0
+      },
+      "color": "#6a9cff"
+    }
+  ]
+}
