@@ -16,6 +16,7 @@ interface UniverseState {
   timeScale: number;
   observers: number;
   predictionEnabled: boolean;
+  gpuAvailable: boolean;
   lastInfo: string;
 
   // actions
@@ -28,6 +29,7 @@ interface UniverseState {
   resume: () => void;
   spawnAsteroid: () => void;
   togglePrediction: () => void;
+  setGpuAvailable: (available: boolean) => void;
   fetchSave: () => Promise<unknown>;
   loadWorld: (save: unknown) => Promise<void>;
 }
@@ -78,6 +80,7 @@ export const useUniverseStore = create<UniverseState>((set, get) => {
     timeScale: 1,
     observers: 0,
     predictionEnabled: true,
+    gpuAvailable: false,
     lastInfo: "",
 
     connect: (url) => {
@@ -123,6 +126,8 @@ export const useUniverseStore = create<UniverseState>((set, get) => {
     select: (id) => set({ selectedId: id }),
 
     togglePrediction: () => set((s) => ({ predictionEnabled: !s.predictionEnabled })),
+
+    setGpuAvailable: (available) => set({ gpuAvailable: available }),
 
     setTimeScale: (scale) => {
       set({ timeScale: scale });

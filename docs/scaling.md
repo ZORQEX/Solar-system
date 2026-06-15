@@ -53,10 +53,19 @@ randomness flows through the seeded `Rng`
 ([`entities/random.ts`](../backend/src/entities/random.ts)). This is what makes
 save/load + deterministic resume possible (see the save-load tests).
 
+## Client-side acceleration (implemented)
+
+- **Web Worker prediction** ([`frontend/src/workers/prediction.worker.ts`](../frontend/src/workers/prediction.worker.ts)):
+  a predictive copy of the real physics engine runs in a worker and is resynced
+  on every server snapshot, so motion stays smooth without the server losing
+  authority. Toggle in the UI; graceful fallback when Workers are unavailable.
+- **WebGPU N-body** ([`frontend/src/gpu/nbody-gpu.ts`](../frontend/src/gpu/nbody-gpu.ts)):
+  an O(N²) force sum on the GPU via a WGSL compute shader, behind a capability
+  check with an exact CPU fallback (same `NBodyAccelerator` interface). The Hud
+  reports whether WebGPU is available.
+
 ## Future directions
 
-- WebGPU compute shader for the N-body force loop (client-side prediction).
-- Web Worker running a predictive copy of the physics for render smoothness;
-  the server stays authoritative.
 - Spatial-hash collision broad-phase.
+- Barnes–Hut tree on the GPU (vs. the current brute-force GPU path).
 - Persistent multiplayer rooms.

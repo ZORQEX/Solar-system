@@ -20,6 +20,7 @@ export function Hud() {
   const timeSeconds = useUniverseStore((s) => s.timeSeconds);
   const bodyCount = useUniverseStore((s) => s.bodies.length);
   const observers = useUniverseStore((s) => s.observers);
+  const gpuAvailable = useUniverseStore((s) => s.gpuAvailable);
   const lastInfo = useUniverseStore((s) => s.lastInfo);
   const reconnect = useUniverseStore((s) => s.reconnect);
 
@@ -41,6 +42,8 @@ export function Hud() {
         <dd>{bodyCount}</dd>
         <dt>observers</dt>
         <dd>{observers}</dd>
+        <dt>WebGPU</dt>
+        <dd>{gpuAvailable ? "yes" : "no"}</dd>
       </dl>
       {lastInfo && <div className="hud__info">{lastInfo}</div>}
     </div>

@@ -4,6 +4,7 @@ import { Hud } from "./components/Hud.tsx";
 import { ControlPanel } from "./components/ControlPanel.tsx";
 import { BodyList } from "./components/BodyList.tsx";
 import { DetailsPanel } from "./components/DetailsPanel.tsx";
+import { isWebGPUAvailable } from "./gpu/nbody-gpu.ts";
 import { useUniverseStore } from "./stores/universeStore.ts";
 
 function serverUrl(): string {
@@ -17,11 +18,13 @@ function serverUrl(): string {
 export function App() {
   const connect = useUniverseStore((s) => s.connect);
   const disconnect = useUniverseStore((s) => s.disconnect);
+  const setGpuAvailable = useUniverseStore((s) => s.setGpuAvailable);
 
   useEffect(() => {
+    setGpuAvailable(isWebGPUAvailable());
     connect(serverUrl());
     return () => disconnect();
-  }, [connect, disconnect]);
+  }, [connect, disconnect, setGpuAvailable]);
 
   return (
     <div className="app">
