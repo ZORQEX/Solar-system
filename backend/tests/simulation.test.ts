@@ -24,13 +24,33 @@ test("simulation is deterministic for a fixed seed", () => {
   );
 });
 
-test("very long spans are capped to maxSubsteps but still cover the full span", () => {
+test("very long spans keep a stable dt while entity time covers the full span", () => {
   const sim = Simulation.fromSeed(5, { fixedDt: 3600, maxSubstepsPerStep: 64 });
-  const span = 3600 * 64 * 100; // 100x more than the cap allows at fixedDt
+  const span = 3600 * 64 * 100; // 100x more than the physics budget can integrate
   const report = sim.simulate(span);
-  assert.equal(report.steps, 64);
-  assert.ok(report.dt > 3600, "step size stretched to cover the span");
-  assert.equal(sim.timeSeconds, span); // entity clock never desyncs
+  assert.equal(report.steps, 64); // physics runs its full substep budget
+  assert.ok(report.dt <= 3600, "physics dt is clamped — orbits never blow up");
+  assert.equal(report.physicsSeconds, 3600 * 64); // bounded orbital integration
+  assert.equal(sim.timeSeconds, span); // entity/stellar clock still covers it all
+});
+
+test("orbits stay bounded even at an absurd time scale (no ejection)", () => {
+  // Reproduces the "bodies fly off screen" bug: a planet on a 1-unit circular
+  // orbit must not be flung away when the time scale is cranked enormously.
+  const M = 1e8;
+  const v = Math.sqrt(M);
+  const sun = new Body({ id: "sun", mass: M, radius: 0, position: new Vector3(0, 0, 0) });
+  const planet = new Body({ id: "p", mass: 1, radius: 0, position: new Vector3(1, 0, 0), velocity: new Vector3(0, v, 0) });
+  const period = (2 * Math.PI) / Math.sqrt(M);
+  const engine = new PhysicsEngine([sun, planet], { G: 1, theta: 0, softening: 0, collisions: false });
+  const sim = new Simulation(new World(engine), { fixedDt: period / 500, maxSubstepsPerStep: 64 });
+
+  // Each tick asks for an astronomically large span (as "eons/s" would).
+  for (let i = 0; i < 50; i++) sim.simulate(period * 1e9);
+
+  const r = planet.position.distance(sun.position);
+  assert.ok(Number.isFinite(r), "position stays finite");
+  assert.ok(r < 5, `planet stays near its orbit, got r=${r}`); // not ejected
 });
 
 test("the simulation layer preserves energy conservation for a clean orbit", () => {

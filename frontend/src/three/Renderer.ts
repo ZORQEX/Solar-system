@@ -31,14 +31,26 @@ export class Renderer {
   private focusId: string | null = null;
   private onSelect: ((id: string | null) => void) | null = null;
   private rafHandle = 0;
+  private contextLost = false;
   private readonly resize = () => this.handleResize();
   private readonly onClick = (e: MouseEvent) => this.handlePick(e);
+  private readonly onContextLost = (e: Event) => {
+    // Must preventDefault so the browser will attempt to restore the context.
+    e.preventDefault();
+    this.contextLost = true;
+  };
+  private readonly onContextRestored = () => {
+    // Three.js re-uploads GPU resources automatically on the next render.
+    this.contextLost = false;
+  };
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-    this.camera = new THREE.PerspectiveCamera(60, 1, 0.001, 100000);
+    // near is small enough to zoom up to a body, but not so small that the huge
+    // far/near ratio wrecks depth precision; far covers the whole AU-scale scene.
+    this.camera = new THREE.PerspectiveCamera(60, 1, 0.01, 100000);
     this.camera.position.set(3, 2, 3);
 
     this.controls = new OrbitControls(this.camera, canvas);
@@ -54,6 +66,8 @@ export class Renderer {
     this.handleResize();
     window.addEventListener("resize", this.resize);
     canvas.addEventListener("click", this.onClick);
+    canvas.addEventListener("webglcontextlost", this.onContextLost as EventListener);
+    canvas.addEventListener("webglcontextrestored", this.onContextRestored);
   }
 
   setOnSelect(cb: (id: string | null) => void): void {
@@ -71,7 +85,16 @@ export class Renderer {
         this.bodies.set(body.id, entry);
         this.scene.add(entry.mesh);
       }
-      entry.mesh.position.copy(toScene(body.position));
+      // Guard against non-finite coordinates (e.g. a NaN from an unstable step):
+      // hide the mesh rather than copying NaN into the scene graph, which would
+      // make it un-cullable and could corrupt the camera target on focus.
+      const p = toScene(body.position);
+      if (Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z)) {
+        entry.mesh.position.copy(p);
+        entry.mesh.visible = true;
+      } else {
+        entry.mesh.visible = false;
+      }
     }
     for (const [id, entry] of this.bodies) {
       if (!seen.has(id)) {
@@ -89,6 +112,8 @@ export class Renderer {
   start(): void {
     const loop = () => {
       this.rafHandle = requestAnimationFrame(loop);
+      // Don't touch GL while the context is lost; resume once restored.
+      if (this.contextLost) return;
       this.controls.update();
 
       // Billboards: keep every glow facing the camera.
@@ -98,7 +123,11 @@ export class Renderer {
 
       if (this.focusId) {
         const target = this.bodies.get(this.focusId);
-        if (target) this.controls.target.lerp(target.mesh.position, 0.1);
+        // Only chase a finite, visible target — never lerp toward NaN, which
+        // would permanently break OrbitControls.
+        if (target && target.mesh.visible) {
+          this.controls.target.lerp(target.mesh.position, 0.1);
+        }
       }
 
       this.renderer.render(this.scene, this.camera);
@@ -110,6 +139,8 @@ export class Renderer {
     cancelAnimationFrame(this.rafHandle);
     window.removeEventListener("resize", this.resize);
     this.canvas.removeEventListener("click", this.onClick);
+    this.canvas.removeEventListener("webglcontextlost", this.onContextLost as EventListener);
+    this.canvas.removeEventListener("webglcontextrestored", this.onContextRestored);
     for (const entry of this.bodies.values()) this.disposeEntry(entry);
     this.bodies.clear();
     this.sphereGeo.dispose();

@@ -44,8 +44,11 @@ setInterval(() => {
   lastAt = now;
   if (!engine || paused || timeScale <= 0) return;
 
-  const simSeconds = realDt * timeScale;
-  const steps = Math.min(MAX_SUBSTEPS, Math.max(1, Math.ceil(simSeconds / FIXED_DT)));
+  // Clamp the integrated span so dt never exceeds FIXED_DT — mirrors the
+  // server's stable-dt rule, so prediction can't fling bodies off screen at a
+  // huge time scale (a resync from the next snapshot keeps it authoritative).
+  const simSeconds = Math.min(realDt * timeScale, MAX_SUBSTEPS * FIXED_DT);
+  const steps = Math.max(1, Math.ceil(simSeconds / FIXED_DT));
   const dt = simSeconds / steps;
   for (let i = 0; i < steps; i++) engine.step(dt);
 

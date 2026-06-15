@@ -16,12 +16,14 @@ export interface SimulationOptions {
 }
 
 export interface AdvanceReport {
-  /** Simulated seconds actually advanced. */
+  /** Simulated seconds the world clock / entity time advanced (the full span). */
   simSeconds: number;
   /** Physics substeps taken. */
   steps: number;
-  /** Physics step size used (sim seconds). */
+  /** Physics step size used (sim seconds); never exceeds `fixedDt`. */
   dt: number;
+  /** Seconds of orbital motion actually integrated (≤ simSeconds when clamped). */
+  physicsSeconds: number;
 }
 
 const DEFAULT_FIXED_DT = 3600; // 1 hour
@@ -73,16 +75,25 @@ export class Simulation {
 
   /**
    * Deterministically advance the world by `simSeconds` of simulated time.
-   * Returns a report of how it was integrated.
+   *
+   * Crucially, the gravitational integrator is *never* stepped with an unstable
+   * `dt`: the physics step is clamped to `fixedDt`, so a span longer than
+   * `maxSubsteps · fixedDt` only advances the orbits by that bounded amount.
+   * Entity time (stellar/biosphere evolution and the clock) still advances by
+   * the **full** span. This is what lets the user fast-forward through eons —
+   * stars age and die — while planetary orbits stay numerically stable and on
+   * screen instead of exploding to infinity.
    */
   simulate(simSeconds: number): AdvanceReport {
     if (simSeconds <= 0) {
-      return { simSeconds: 0, steps: 0, dt: 0 };
+      return { simSeconds: 0, steps: 0, dt: 0, physicsSeconds: 0 };
     }
 
-    let steps = Math.ceil(simSeconds / this.fixedDt);
-    if (steps > this.maxSubsteps) steps = this.maxSubsteps;
-    const dt = simSeconds / steps;
+    // Physics integrates at most maxSubsteps stable steps; dt never exceeds
+    // fixedDt, so orbits can't blow up no matter how large the time scale is.
+    const physicsSeconds = Math.min(simSeconds, this.maxSubsteps * this.fixedDt);
+    const steps = Math.max(1, Math.ceil(physicsSeconds / this.fixedDt));
+    const dt = physicsSeconds / steps;
 
     for (let i = 0; i < steps; i++) {
       this.world.physics.step(dt);
@@ -92,7 +103,7 @@ export class Simulation {
     // Then let mods react (life evolution, custom rules, …).
     for (const mod of this.mods) mod.onEvolve?.(this.modContext, simSeconds);
 
-    return { simSeconds, steps, dt };
+    return { simSeconds, steps, dt, physicsSeconds };
   }
 
   /** Real-time playback: advance by `realDeltaSeconds` scaled by the time controller. */
