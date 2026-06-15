@@ -80,6 +80,13 @@ export class World {
     this.civilizations.set(civ.id, civ);
   }
 
+  /** Reset simulation time to 0. */
+  resetTime(): void {
+    this.timeSeconds = 0;
+    this.physics.time = 0;
+    this.physics.steps = 0;
+  }
+
   private findBody(id: string): Body | undefined {
     return this.physics.bodies.find((b) => b.id === id && b.alive);
   }

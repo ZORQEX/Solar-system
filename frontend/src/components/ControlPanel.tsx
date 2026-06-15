@@ -5,7 +5,9 @@ import { TIME_SCALES, type TimeScaleName } from "../shared.ts";
 const SCALE_OPTIONS = Object.keys(TIME_SCALES) as TimeScaleName[];
 
 function downloadJson(filename: string, data: unknown): void {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json",
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -20,6 +22,7 @@ export function ControlPanel() {
   const timeScale = useUniverseStore((s) => s.timeScale);
   const pause = useUniverseStore((s) => s.pause);
   const resume = useUniverseStore((s) => s.resume);
+  const resetTime = useUniverseStore((s) => s.resetTime);
   const setTimeScale = useUniverseStore((s) => s.setTimeScale);
   const spawnAsteroid = useUniverseStore((s) => s.spawnAsteroid);
   const predictionEnabled = useUniverseStore((s) => s.predictionEnabled);
@@ -56,9 +59,16 @@ export function ControlPanel() {
         {paused ? "▶ Resume" : "⏸ Pause"}
       </button>
 
+      <button onClick={() => resetTime()} title="Reset simulation time to 0">
+        🔄 Reset Time
+      </button>
+
       <label className="controls__scale">
         speed
-        <select value={timeScale} onChange={(e) => setTimeScale(Number(e.target.value))}>
+        <select
+          value={timeScale}
+          onChange={(e) => setTimeScale(Number(e.target.value))}
+        >
           {SCALE_OPTIONS.map((name) => (
             <option key={name} value={TIME_SCALES[name]}>
               {name}

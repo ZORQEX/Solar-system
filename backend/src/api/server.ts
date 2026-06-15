@@ -1,4 +1,9 @@
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from "node:http";
 import { WebSocketServer, WebSocket, type RawData } from "ws";
 import { Body } from "../core/index.ts";
 import { Simulation, World } from "../simulation/index.ts";
@@ -61,7 +66,9 @@ export class UniverseServer {
     this.authToken = options.authToken;
     this.http = createServer((req, res) => this.handleHttp(req, res));
     this.wss = new WebSocketServer({ server: this.http });
-    this.wss.on("connection", (socket, request) => this.handleConnection(socket, request));
+    this.wss.on("connection", (socket, request) =>
+      this.handleConnection(socket, request),
+    );
   }
 
   // --- lifecycle -----------------------------------------------------------
@@ -137,7 +144,10 @@ export class UniverseServer {
 
   // --- WebSocket -----------------------------------------------------------
 
-  private handleConnection(socket: IdentifiedSocket, request: IncomingMessage): void {
+  private handleConnection(
+    socket: IdentifiedSocket,
+    request: IncomingMessage,
+  ): void {
     if (this.authToken !== undefined && !this.isWsAuthorized(request)) {
       this.logger.warn("ws connection rejected: unauthorized");
       this.send(socket, { type: "error", message: "unauthorized" });
@@ -192,7 +202,10 @@ export class UniverseServer {
     try {
       const message = validateClientMessage(parsed);
       const broadcastSnapshot = this.applyCommand(message);
-      this.logger.debug("command", { clientId: socket.clientId, type: message.type });
+      this.logger.debug("command", {
+        clientId: socket.clientId,
+        type: message.type,
+      });
       this.send(socket, { type: "ack", command: message.type });
       if (message.type === "requestState") {
         this.send(socket, {
@@ -207,7 +220,10 @@ export class UniverseServer {
     } catch (err) {
       this.metrics.commandErrors += 1;
       const message = err instanceof Error ? err.message : "command failed";
-      this.logger.warn("command rejected", { clientId: socket.clientId, error: message });
+      this.logger.warn("command rejected", {
+        clientId: socket.clientId,
+        error: message,
+      });
       this.send(socket, { type: "error", message });
     }
   }
@@ -234,8 +250,15 @@ export class UniverseServer {
           throw new Error("setTimeScale: scale must be a non-negative number");
         }
         this.simulation.time.setScale(message.scale);
-        this.broadcast({ type: "info", message: `time scale = ${message.scale}` });
+        this.broadcast({
+          type: "info",
+          message: `time scale = ${message.scale}`,
+        });
         return false;
+      case "resetTime":
+        this.simulation.world.resetTime();
+        this.broadcast({ type: "info", message: "simulation time reset to 0" });
+        return true;
       case "addBody":
         if (!message.body || typeof message.body.id !== "string") {
           throw new Error("addBody: missing body");
@@ -273,7 +296,10 @@ export class UniverseServer {
 
   // --- REST ----------------------------------------------------------------
 
-  private async handleHttp(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  private async handleHttp(
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): Promise<void> {
     const url = req.url ?? "/";
     const method = req.method ?? "GET";
 
@@ -308,7 +334,10 @@ export class UniverseServer {
         });
       }
       if (method === "GET" && url === "/api/metrics") {
-        return this.json(res, 200, { ...this.metrics.snapshot(), world: this.worldInfo() });
+        return this.json(res, 200, {
+          ...this.metrics.snapshot(),
+          world: this.worldInfo(),
+        });
       }
       if (method === "GET" && url === "/api/state") {
         return this.json(res, 200, {
@@ -322,9 +351,14 @@ export class UniverseServer {
       if (method === "POST" && url === "/api/load") {
         const save = validateWorldSave(await this.readJson(req));
         this.simulation = new Simulation(World.fromSave(save));
-        this.logger.info("world loaded", { bodies: this.simulation.world.physics.count });
+        this.logger.info("world loaded", {
+          bodies: this.simulation.world.physics.count,
+        });
         this.broadcastSnapshot();
-        return this.json(res, 200, { status: "loaded", world: this.worldInfo() });
+        return this.json(res, 200, {
+          status: "loaded",
+          world: this.worldInfo(),
+        });
       }
       if (method === "POST" && url === "/api/command") {
         const command = validateClientMessage(await this.readJson(req));

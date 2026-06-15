@@ -41,6 +41,7 @@ export type ClientMessage =
   | { type: "pause" }
   | { type: "resume" }
   | { type: "setTimeScale"; scale: number }
+  | { type: "resetTime" }
   | { type: "addBody"; body: BodyData };
 
 export type ClientMessageType = ClientMessage["type"];

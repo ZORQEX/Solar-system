@@ -27,6 +27,7 @@ interface UniverseState {
   setTimeScale: (scale: number) => void;
   pause: () => void;
   resume: () => void;
+  resetTime: () => void;
   spawnAsteroid: () => void;
   togglePrediction: () => void;
   setGpuAvailable: (available: boolean) => void;
@@ -125,7 +126,8 @@ export const useUniverseStore = create<UniverseState>((set, get) => {
 
     select: (id) => set({ selectedId: id }),
 
-    togglePrediction: () => set((s) => ({ predictionEnabled: !s.predictionEnabled })),
+    togglePrediction: () =>
+      set((s) => ({ predictionEnabled: !s.predictionEnabled })),
 
     setGpuAvailable: (available) => set({ gpuAvailable: available }),
 
@@ -144,6 +146,10 @@ export const useUniverseStore = create<UniverseState>((set, get) => {
       connection?.send({ type: "resume" });
     },
 
+    resetTime: () => {
+      connection?.send({ type: "resetTime" });
+    },
+
     fetchSave: async () => {
       const { serverUrl } = get();
       if (!serverUrl) throw new Error("not connected");
@@ -157,7 +163,9 @@ export const useUniverseStore = create<UniverseState>((set, get) => {
         await postLoad(httpBaseFromWs(serverUrl), save);
         set({ lastInfo: "world loaded" });
       } catch (err) {
-        set({ lastInfo: `load failed: ${err instanceof Error ? err.message : err}` });
+        set({
+          lastInfo: `load failed: ${err instanceof Error ? err.message : err}`,
+        });
         throw err;
       }
     },
@@ -184,7 +192,11 @@ export const useUniverseStore = create<UniverseState>((set, get) => {
             y: Math.sin(angle) * maxR * 1.2,
             z: 0,
           },
-          velocity: { x: -Math.sin(angle) * 1e4, y: Math.cos(angle) * 1e4, z: 0 },
+          velocity: {
+            x: -Math.sin(angle) * 1e4,
+            y: Math.cos(angle) * 1e4,
+            z: 0,
+          },
           color: "#cccccc",
         },
       });

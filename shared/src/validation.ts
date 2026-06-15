@@ -4,7 +4,12 @@
  * these functions enforce it at runtime and produce clear error messages so a
  * malformed request becomes a 400, never a crash deep in the engine.
  */
-import { BODY_TYPES, type BodyData, type ScenarioData, type Vec3Data } from "./types.ts";
+import {
+  BODY_TYPES,
+  type BodyData,
+  type ScenarioData,
+  type Vec3Data,
+} from "./types.ts";
 import type { ClientMessage } from "./protocol.ts";
 
 export class ValidationError extends Error {
@@ -40,15 +45,24 @@ function str(x: unknown, path: string): string {
 
 export function validateVec3(x: unknown, path: string): Vec3Data {
   if (!isObject(x)) throw new ValidationError(`${path} must be an object`);
-  return { x: num(x.x, `${path}.x`), y: num(x.y, `${path}.y`), z: num(x.z, `${path}.z`) };
+  return {
+    x: num(x.x, `${path}.x`),
+    y: num(x.y, `${path}.y`),
+    z: num(x.z, `${path}.z`),
+  };
 }
 
 export function validateBodyData(x: unknown, path = "body"): BodyData {
   if (!isObject(x)) throw new ValidationError(`${path} must be an object`);
 
   const type = x.type;
-  if (typeof type !== "string" || !(BODY_TYPES as readonly string[]).includes(type)) {
-    throw new ValidationError(`${path}.type must be one of: ${BODY_TYPES.join(", ")}`);
+  if (
+    typeof type !== "string" ||
+    !(BODY_TYPES as readonly string[]).includes(type)
+  ) {
+    throw new ValidationError(
+      `${path}.type must be one of: ${BODY_TYPES.join(", ")}`,
+    );
   }
 
   const body: BodyData = {
@@ -66,15 +80,20 @@ export function validateBodyData(x: unknown, path = "body"): BodyData {
 
 export function validateScenario(x: unknown): ScenarioData {
   if (!isObject(x)) throw new ValidationError("scenario must be an object");
-  if (!Array.isArray(x.bodies)) throw new ValidationError("scenario.bodies must be an array");
+  if (!Array.isArray(x.bodies))
+    throw new ValidationError("scenario.bodies must be an array");
 
   const scenario: ScenarioData = {
     name: str(x.name, "scenario.name"),
-    bodies: x.bodies.map((b, i) => validateBodyData(b, `scenario.bodies[${i}]`)),
+    bodies: x.bodies.map((b, i) =>
+      validateBodyData(b, `scenario.bodies[${i}]`),
+    ),
   };
-  if (x.description !== undefined) scenario.description = str(x.description, "scenario.description");
+  if (x.description !== undefined)
+    scenario.description = str(x.description, "scenario.description");
   if (x.G !== undefined) scenario.G = num(x.G, "scenario.G");
-  if (x.softening !== undefined) scenario.softening = nonNegative(x.softening, "scenario.softening");
+  if (x.softening !== undefined)
+    scenario.softening = nonNegative(x.softening, "scenario.softening");
   return scenario;
 }
 
@@ -85,12 +104,21 @@ export function validateClientMessage(x: unknown): ClientMessage {
     case "requestState":
     case "pause":
     case "resume":
+    case "resetTime":
       return { type: x.type };
     case "setTimeScale":
-      return { type: "setTimeScale", scale: nonNegative(x.scale, "message.scale") };
+      return {
+        type: "setTimeScale",
+        scale: nonNegative(x.scale, "message.scale"),
+      };
     case "addBody":
-      return { type: "addBody", body: validateBodyData(x.body, "message.body") };
+      return {
+        type: "addBody",
+        body: validateBodyData(x.body, "message.body"),
+      };
     default:
-      throw new ValidationError(`unknown message type: ${JSON.stringify(x.type)}`);
+      throw new ValidationError(
+        `unknown message type: ${JSON.stringify(x.type)}`,
+      );
   }
 }
