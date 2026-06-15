@@ -33,7 +33,11 @@ const logger = createLogger({
   level: (process.env.LOG_LEVEL as LogLevel) ?? "info",
   json: process.env.LOG_JSON === "1",
 });
-const server = new UniverseServer(sim, { logger });
+const authToken = process.env.AUTH_TOKEN;
+const server = new UniverseServer(sim, {
+  logger,
+  ...(authToken ? { authToken } : {}),
+});
 const actualPort = await server.listen(port);
 server.start();
 
@@ -41,6 +45,7 @@ console.log(`Universe server listening on http://localhost:${actualPort}`);
 console.log(`  REST:      GET http://localhost:${actualPort}/api/health`);
 console.log(`  WebSocket: ws://localhost:${actualPort}`);
 console.log(`  time scale: ${sim.time.scale} sim-seconds / real-second`);
+console.log(`  auth:       ${authToken ? "required (AUTH_TOKEN set)" : "open"}`);
 
 const shutdown = () => {
   console.log("\nshutting down…");

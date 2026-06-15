@@ -18,6 +18,13 @@ export interface ServerOptions {
   tickIntervalMs?: number;
   /** Structured logger. Defaults to an info-level console logger. */
   logger?: Logger;
+  /**
+   * If set, mutating/sensitive access requires this token:
+   *  - REST: `Authorization: Bearer <token>` on save/load/command
+   *  - WebSocket: `?token=<token>` on the connection URL
+   * Health, metrics and state stay open for monitoring/display.
+   */
+  authToken?: string;
 }
 
 interface IdentifiedSocket extends WebSocket {
@@ -45,14 +52,16 @@ export class UniverseServer {
   private readonly startedAt = Date.now();
   readonly logger: Logger;
   readonly metrics = new Metrics();
+  private readonly authToken: string | undefined;
 
   constructor(simulation: Simulation, options: ServerOptions = {}) {
     this.simulation = simulation;
     this.tickIntervalMs = options.tickIntervalMs ?? 1000 / 30; // ~30 Hz
     this.logger = options.logger ?? createLogger({ scope: "server" });
+    this.authToken = options.authToken;
     this.http = createServer((req, res) => this.handleHttp(req, res));
     this.wss = new WebSocketServer({ server: this.http });
-    this.wss.on("connection", (socket) => this.handleConnection(socket));
+    this.wss.on("connection", (socket, request) => this.handleConnection(socket, request));
   }
 
   // --- lifecycle -----------------------------------------------------------
@@ -114,9 +123,28 @@ export class UniverseServer {
     };
   }
 
+  // --- auth -----------------------------------------------------------------
+
+  private isWsAuthorized(request: IncomingMessage): boolean {
+    const url = new URL(request.url ?? "/", "http://localhost");
+    return url.searchParams.get("token") === this.authToken;
+  }
+
+  private isHttpAuthorized(req: IncomingMessage): boolean {
+    if (this.authToken === undefined) return true;
+    return req.headers.authorization === `Bearer ${this.authToken}`;
+  }
+
   // --- WebSocket -----------------------------------------------------------
 
-  private handleConnection(socket: IdentifiedSocket): void {
+  private handleConnection(socket: IdentifiedSocket, request: IncomingMessage): void {
+    if (this.authToken !== undefined && !this.isWsAuthorized(request)) {
+      this.logger.warn("ws connection rejected: unauthorized");
+      this.send(socket, { type: "error", message: "unauthorized" });
+      socket.close(1008, "unauthorized");
+      return;
+    }
+
     socket.clientId = `c${this.nextClientId++}`;
     this.metrics.onConnect();
     this.logger.info("client connected", {
@@ -261,6 +289,14 @@ export class UniverseServer {
         ms: Date.now() - startedAt,
       }),
     );
+
+    // Sensitive/mutating routes require auth when a token is configured.
+    const protectedRoute =
+      (method === "GET" && url === "/api/save") ||
+      (method === "POST" && (url === "/api/load" || url === "/api/command"));
+    if (protectedRoute && !this.isHttpAuthorized(req)) {
+      return this.json(res, 401, { error: "unauthorized" });
+    }
 
     try {
       if (method === "GET" && url === "/api/health") {

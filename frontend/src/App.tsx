@@ -8,9 +8,10 @@ import { useUniverseStore } from "./stores/universeStore.ts";
 
 function serverUrl(): string {
   const fromEnv = import.meta.env.VITE_SERVER_URL as string | undefined;
-  if (fromEnv) return fromEnv;
   const host = typeof location !== "undefined" ? location.hostname : "localhost";
-  return `ws://${host}:8080`;
+  const base = fromEnv ?? `ws://${host}:8080`;
+  const token = import.meta.env.VITE_AUTH_TOKEN as string | undefined;
+  return token ? `${base}?token=${encodeURIComponent(token)}` : base;
 }
 
 export function App() {

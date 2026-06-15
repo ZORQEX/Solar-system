@@ -23,6 +23,20 @@ invalid input yields a `400` (REST) or an `error` message (WebSocket), never a c
 Errors return `4xx` with `{ "error": "<message>" }`. `POST /api/load` replaces
 the live world and broadcasts a fresh snapshot to all WebSocket clients.
 
+### Authentication (optional)
+
+Start the server with `AUTH_TOKEN=<token>` (or `new UniverseServer(sim, {
+authToken })`). When set:
+
+- `GET /api/save`, `POST /api/load`, `POST /api/command` require
+  `Authorization: Bearer <token>` → otherwise `401`.
+- WebSocket connections require `ws://host:port?token=<token>` → otherwise the
+  server sends an `error` and closes.
+- `GET /api/health`, `/api/metrics`, `/api/state` stay open for monitoring/display.
+
+The client reads `VITE_AUTH_TOKEN` and applies it to both the WS URL and REST
+headers automatically.
+
 ```bash
 curl http://localhost:8080/api/health
 curl http://localhost:8080/api/save > my-universe.json
