@@ -117,6 +117,37 @@ test("REST /api/command rejects an invalid time scale", async () => {
   });
 });
 
+test("REST resetTime sets the simulation clock back to zero", async () => {
+  await withServer(async (port, server) => {
+    server.tickOnce(0.016); // advance the clock a little
+    assert.ok(server.simulation.timeSeconds > 0);
+
+    const res = await fetch(`http://localhost:${port}/api/command`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ type: "resetTime" }),
+    });
+    assert.equal(res.status, 200);
+    assert.equal(server.simulation.timeSeconds, 0);
+  });
+});
+
+test("WebSocket resetTime is acknowledged (not rejected)", async () => {
+  await withServer(async (port, server) => {
+    server.tickOnce(0.016);
+    const client = new WsClient(`ws://localhost:${port}`);
+    await client.open();
+    await client.next((m) => m.type === "welcome");
+
+    client.send({ type: "resetTime" });
+    const ack = await client.next((m) => m.type === "ack");
+    assert.equal(ack.type, "ack");
+    if (ack.type === "ack") assert.equal(ack.command, "resetTime");
+    assert.equal(server.simulation.timeSeconds, 0);
+    client.close();
+  });
+});
+
 test("REST /api/command rejects an addBody with a malformed body", async () => {
   await withServer(async (port) => {
     const res = await fetch(`http://localhost:${port}/api/command`, {
