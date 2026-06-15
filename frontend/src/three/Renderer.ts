@@ -4,12 +4,32 @@ import glowVert from "../shaders/glow.vert.glsl?raw";
 import glowFrag from "../shaders/glow.frag.glsl?raw";
 import starfieldVert from "../shaders/starfield.vert.glsl?raw";
 import starfieldFrag from "../shaders/starfield.frag.glsl?raw";
-import { bodyColor, displayRadius, isLuminous, toScene } from "./scaling.ts";
+import atmosphereVert from "../shaders/atmosphere.vert.glsl?raw";
+import atmosphereFrag from "../shaders/atmosphere.frag.glsl?raw";
+import cloudsVert from "../shaders/clouds.vert.glsl?raw";
+import cloudsFragSrc from "../shaders/clouds.frag.glsl?raw";
+import planetVert from "../shaders/planet.vert.glsl?raw";
+import planetFragSrc from "../shaders/planet.frag.glsl?raw";
+import noiseGLSL from "../shaders/noise.glsl?raw";
+import { bodyColor, displayRadius, isLuminous, planetAppearance, toScene } from "./scaling.ts";
 import type { BodyData } from "../shared.ts";
+
+// Shaders that use procedural noise get the snoise/fbm library prepended.
+const CLOUDS_FRAG = `${noiseGLSL}\n${cloudsFragSrc}`;
+const PLANET_FRAG = `${noiseGLSL}\n${planetFragSrc}`;
+
+/** Skip the cloud layer when the camera is farther than this (scene units). */
+const CLOUD_LOD_DISTANCE = 500;
 
 interface BodyEntry {
   mesh: THREE.Mesh;
   glow: THREE.Mesh | null;
+  /** Fresnel atmosphere shell (BackSide, additive), if any. */
+  atmosphere: THREE.Mesh | null;
+  /** Procedural cloud shell, if any. */
+  clouds: THREE.Mesh | null;
+  /** True when the surface material is the sun-driven day/night shader. */
+  terminator: boolean;
 }
 
 /**
@@ -32,6 +52,9 @@ export class Renderer {
   private onSelect: ((id: string | null) => void) | null = null;
   private rafHandle = 0;
   private contextLost = false;
+  /** World position of the brightest star, for day/night + cloud shading. */
+  private readonly sunPosition = new THREE.Vector3();
+  private readonly tmpDir = new THREE.Vector3();
   private readonly resize = () => this.handleResize();
   private readonly onClick = (e: MouseEvent) => this.handlePick(e);
   private readonly onContextLost = (e: Event) => {
@@ -77,6 +100,7 @@ export class Renderer {
   /** Reconcile the scene with a fresh snapshot of bodies. */
   setBodies(bodies: BodyData[]): void {
     const seen = new Set<string>();
+    let brightestMass = -Infinity;
     for (const body of bodies) {
       seen.add(body.id);
       let entry = this.bodies.get(body.id);
@@ -89,9 +113,15 @@ export class Renderer {
       // hide the mesh rather than copying NaN into the scene graph, which would
       // make it un-cullable and could corrupt the camera target on focus.
       const p = toScene(body.position);
-      if (Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z)) {
+      const finite = Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z);
+      if (finite) {
         entry.mesh.position.copy(p);
         entry.mesh.visible = true;
+        // Track the brightest star as the light source for shading.
+        if (isLuminous(body) && body.mass > brightestMass) {
+          brightestMass = body.mass;
+          this.sunPosition.copy(p);
+        }
       } else {
         entry.mesh.visible = false;
       }
@@ -116,9 +146,35 @@ export class Renderer {
       if (this.contextLost) return;
       this.controls.update();
 
-      // Billboards: keep every glow facing the camera.
+      const time = performance.now() * 0.001;
+
+      // Per-body per-frame updates: glow billboards, atmosphere/cloud shading,
+      // cloud animation, and cloud LOD.
       for (const entry of this.bodies.values()) {
         if (entry.glow) entry.glow.quaternion.copy(this.camera.quaternion);
+
+        if (entry.terminator || entry.clouds) {
+          // Direction from this body toward the sun (world space).
+          this.tmpDir.copy(this.sunPosition).sub(entry.mesh.position);
+          if (this.tmpDir.lengthSq() === 0) this.tmpDir.set(1, 0, 0);
+          else this.tmpDir.normalize();
+        }
+
+        if (entry.terminator) {
+          const mat = entry.mesh.material as THREE.ShaderMaterial;
+          mat.uniforms.sunDirection!.value.copy(this.tmpDir);
+        }
+
+        if (entry.clouds) {
+          // LOD: drop the cloud shell when the camera is far away.
+          const dist = this.camera.position.distanceTo(entry.mesh.position);
+          entry.clouds.visible = dist < CLOUD_LOD_DISTANCE;
+          if (entry.clouds.visible) {
+            const cm = entry.clouds.material as THREE.ShaderMaterial;
+            cm.uniforms.time!.value = time;
+            cm.uniforms.sunDirection!.value.copy(this.tmpDir);
+          }
+        }
       }
 
       if (this.focusId) {
@@ -155,41 +211,102 @@ export class Renderer {
     const color = bodyColor(body);
     const radius = displayRadius(body);
     const luminous = isLuminous(body);
+    const look = planetAppearance(body);
 
-    const material = luminous
-      ? new THREE.MeshBasicMaterial({ color })
-      : new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.1 });
+    // Surface material: stars glow flat; rocky worlds use the day/night
+    // terminator shader; everything else is lit by the scene's point light.
+    let material: THREE.Material;
+    if (luminous) {
+      material = new THREE.MeshBasicMaterial({ color });
+    } else if (look.terminatorSurface) {
+      material = new THREE.ShaderMaterial({
+        vertexShader: planetVert,
+        fragmentShader: PLANET_FRAG,
+        uniforms: {
+          sunDirection: { value: new THREE.Vector3(1, 0, 0) },
+          dayColor: { value: color.clone() },
+          cityLights: { value: look.cityLights },
+        },
+      });
+    } else {
+      material = new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.1 });
+    }
     const mesh = new THREE.Mesh(this.sphereGeo, material);
     mesh.scale.setScalar(radius);
     mesh.userData.id = body.id;
 
+    // Star glow billboard (child scale is relative to the radius-scaled parent).
     let glow: THREE.Mesh | null = null;
     if (luminous) {
       const glowMat = new THREE.ShaderMaterial({
         vertexShader: glowVert,
         fragmentShader: glowFrag,
-        uniforms: {
-          uColor: { value: color.clone() },
-          uIntensity: { value: 1.0 },
-        },
+        uniforms: { uColor: { value: color.clone() }, uIntensity: { value: 1.0 } },
         transparent: true,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
       });
       glow = new THREE.Mesh(this.glowGeo, glowMat);
-      glow.scale.setScalar(radius * 8);
+      glow.scale.setScalar(8); // ~8x the star radius
       mesh.add(glow);
     }
 
-    return { mesh, glow };
+    // Atmosphere shell: a slightly larger BackSide sphere with a Fresnel rim.
+    let atmosphere: THREE.Mesh | null = null;
+    if (look.hasAtmosphere) {
+      const atmMat = new THREE.ShaderMaterial({
+        vertexShader: atmosphereVert,
+        fragmentShader: atmosphereFrag,
+        uniforms: {
+          atmosphereColor: { value: new THREE.Color(...look.atmosphereColor) },
+          intensity: { value: look.atmosphereIntensity },
+        },
+        side: THREE.BackSide,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+      atmosphere = new THREE.Mesh(this.sphereGeo, atmMat);
+      atmosphere.scale.setScalar(1.025);
+      atmosphere.renderOrder = 3;
+      mesh.add(atmosphere);
+    }
+
+    // Procedural cloud shell just above the surface.
+    let clouds: THREE.Mesh | null = null;
+    if (look.hasClouds && look.cloudOpacity > 0) {
+      const cloudMat = new THREE.ShaderMaterial({
+        vertexShader: cloudsVert,
+        fragmentShader: CLOUDS_FRAG,
+        uniforms: {
+          time: { value: 0 },
+          windSpeed: { value: 0.02 },
+          cloudScale: { value: 3.0 },
+          opacity: { value: look.cloudOpacity },
+          cloudColor: { value: new THREE.Color(...look.cloudColor) },
+          sunDirection: { value: new THREE.Vector3(1, 0, 0) },
+        },
+        transparent: true,
+        depthWrite: false,
+      });
+      clouds = new THREE.Mesh(this.sphereGeo, cloudMat);
+      clouds.scale.setScalar(1.01);
+      clouds.renderOrder = 2;
+      mesh.add(clouds);
+    }
+
+    return { mesh, glow, atmosphere, clouds, terminator: look.terminatorSurface };
   }
 
   private disposeEntry(entry: BodyEntry): void {
+    // Removing the parent mesh removes its atmosphere/cloud/glow children too;
+    // geometry (sphereGeo/glowGeo) is shared, so only per-body materials are
+    // disposed here.
     this.scene.remove(entry.mesh);
-    // Geometry (sphereGeo/glowGeo) is shared and disposed in dispose(); only the
-    // per-body materials are owned here.
     (entry.mesh.material as THREE.Material).dispose();
     if (entry.glow) (entry.glow.material as THREE.Material).dispose();
+    if (entry.atmosphere) (entry.atmosphere.material as THREE.Material).dispose();
+    if (entry.clouds) (entry.clouds.material as THREE.Material).dispose();
   }
 
   private makeStarfield(count: number, radius: number): THREE.Points {
