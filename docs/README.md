@@ -7,8 +7,9 @@ Reference docs for how the simulator is built and how to extend it.
 | [architecture.md](architecture.md) | Module layout, dependency direction, data flow client ↔ server |
 | [physics.md](physics.md) | The physics: softened gravity, Barnes–Hut, Velocity-Verlet, collisions, conservation |
 | [api.md](api.md) | REST endpoints and the WebSocket wire protocol |
-| [scaling.md](scaling.md) | Performance characteristics and the multi-scale time model |
+| [scaling.md](scaling.md) | Performance characteristics, multi-scale time, client prediction + WebGPU |
 | [modding.md](modding.md) | Writing mods: custom physics laws (`forceField`) and rules (`onEvolve`) |
+| [deployment.md](deployment.md) | Running locally and with Docker (server + client) |
 
 See the root [ARCHITECTURE.md](../ARCHITECTURE.md) for the project contract/conventions and
 [README.md](../README.md) for quick-start commands.
