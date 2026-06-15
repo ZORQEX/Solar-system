@@ -176,7 +176,7 @@ export class ProceduralPlanet implements CelestialObject {
       uDiffuse: { value: 1.0 },
       uSpecular: { value: 0.5 },
       uShininess: { value: 16.0 },
-      uSunDirection: { value: new THREE.Vector3(1, 0, 0) },
+      uSunPosition: { value: new THREE.Vector3(0, 0, 0) },
       uLightColor: { value: new THREE.Color(1, 1, 1) },
     };
   }
