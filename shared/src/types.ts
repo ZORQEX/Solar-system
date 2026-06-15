@@ -29,6 +29,19 @@ export const BODY_TYPES = [
   "generic",
 ] as const satisfies readonly BodyType[];
 
+/**
+ * Finer visual classification for solid/gaseous worlds, used only by the
+ * frontend renderer to pick a surface palette and noise profile. Optional and
+ * purely cosmetic — the physics core and wire protocol never depend on it.
+ */
+export type PlanetSubtype =
+  | "terrestrial"
+  | "ice-world"
+  | "gas-giant"
+  | "lava"
+  | "ocean"
+  | "barren";
+
 /** A minimal serializable 3-vector (the wire/JSON form of a Vector3). */
 export interface Vec3Data {
   x: number;
@@ -49,6 +62,8 @@ export interface BodyData {
   /** Optional display hints — never used by the physics core. */
   name?: string;
   color?: string;
+  /** Optional cosmetic classification for the renderer (derived if absent). */
+  subtype?: PlanetSubtype;
 }
 
 /** A complete initial condition that the engine can load. */
