@@ -7,3 +7,6 @@ coverage/
 .env
 .env.*
 *.tsbuildinfo
+
+# Local reference material (not part of the project)
+reference/
