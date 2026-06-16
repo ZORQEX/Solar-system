@@ -325,6 +325,22 @@ export class UniverseServer {
     }
 
     try {
+      if (method === "GET" && (url === "/" || url === "/api" || url === "/api/")) {
+        return this.json(res, 200, {
+          service: "universe-sim-2049 — authoritative simulation server",
+          note: "This is the API/WebSocket server. The 3D client is a separate Vite dev server (default http://localhost:5173).",
+          endpoints: [
+            "GET /api/health",
+            "GET /api/metrics",
+            "GET /api/state",
+            "GET /api/save",
+            "POST /api/load",
+            "POST /api/command",
+            "WS  / (snapshots + commands)",
+          ],
+          world: this.worldInfo(),
+        });
+      }
       if (method === "GET" && url === "/api/health") {
         return this.json(res, 200, {
           status: "ok",
