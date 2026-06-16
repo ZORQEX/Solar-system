@@ -76,6 +76,8 @@ export interface BodyData {
   color?: string;
   /** Optional cosmetic classification for the renderer (derived if absent). */
   subtype?: PlanetSubtype;
+  /** Body id of the parent (e.g. a moon's planet) — for UI grouping only. */
+  parentId?: string;
 }
 
 /** A complete initial condition that the engine can load. */

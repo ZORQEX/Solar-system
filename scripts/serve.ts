@@ -19,15 +19,18 @@ const seed = process.env.SEED ? Number(process.env.SEED) : null;
 
 const scenarioName = process.env.SCENARIO ?? "solar-system";
 
+// 600 s physics step keeps even the fastest moons stable (Phobos: ~46 steps/orbit).
+const simOptions = { timeScale: SECONDS_PER_DAY, fixedDt: 600 } as const;
+
 let sim: Simulation;
 if (seed !== null) {
-  sim = Simulation.fromSeed(seed, { timeScale: SECONDS_PER_DAY });
+  sim = Simulation.fromSeed(seed, simOptions);
 } else {
   const here = dirname(fileURLToPath(import.meta.url));
   const scenario = JSON.parse(
     readFileSync(join(here, "..", "data", `${scenarioName}.json`), "utf8"),
   ) as ScenarioData;
-  sim = Simulation.fromScenario(scenario, { timeScale: SECONDS_PER_DAY });
+  sim = Simulation.fromScenario(scenario, simOptions);
 }
 
 const logger = createLogger({

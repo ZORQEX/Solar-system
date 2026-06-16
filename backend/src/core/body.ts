@@ -1,5 +1,5 @@
 import { Vector3 } from "./vector3.ts";
-import type { BodyData, BodyType } from "../shared.ts";
+import type { BodyData, BodyType, PlanetSubtype } from "../shared.ts";
 
 /**
  * A gravitating body. Unlike `Vector3`, a `Body` is *mutable*: the integrator
@@ -20,6 +20,9 @@ export class Body {
   acceleration: Vector3;
   name: string | undefined;
   color: string | undefined;
+  /** Cosmetic render hints — carried through but never used by the physics core. */
+  subtype: PlanetSubtype | undefined;
+  parentId: string | undefined;
 
   /** Set false when a body has been absorbed by a merge; skipped thereafter. */
   alive = true;
@@ -33,6 +36,8 @@ export class Body {
     velocity?: Vector3;
     name?: string;
     color?: string;
+    subtype?: PlanetSubtype;
+    parentId?: string;
   }) {
     this.id = params.id;
     this.type = params.type ?? "generic";
@@ -43,6 +48,8 @@ export class Body {
     this.acceleration = Vector3.zero();
     this.name = params.name;
     this.color = params.color;
+    this.subtype = params.subtype;
+    this.parentId = params.parentId;
   }
 
   /** Linear momentum, p = m·v (vector, kg·m/s). */
@@ -65,6 +72,8 @@ export class Body {
       velocity: Vector3.from(data.velocity),
       ...(data.name !== undefined ? { name: data.name } : {}),
       ...(data.color !== undefined ? { color: data.color } : {}),
+      ...(data.subtype !== undefined ? { subtype: data.subtype } : {}),
+      ...(data.parentId !== undefined ? { parentId: data.parentId } : {}),
     });
   }
 
@@ -78,6 +87,8 @@ export class Body {
       velocity: this.velocity.toJSON(),
       ...(this.name !== undefined ? { name: this.name } : {}),
       ...(this.color !== undefined ? { color: this.color } : {}),
+      ...(this.subtype !== undefined ? { subtype: this.subtype } : {}),
+      ...(this.parentId !== undefined ? { parentId: this.parentId } : {}),
     };
   }
 }
