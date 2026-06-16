@@ -7,7 +7,6 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { Rng, generateGalaxy } from "../backend/src/entities/index.ts";
 import { buildSolarSystem } from "./generate-solar-system.ts";
-import { MOONS, type MoonData } from "./data/moons.ts";
 import {
   AU,
   G,
@@ -81,88 +80,11 @@ export function buildFigureEight(): ScenarioData {
   return { name: "Figure-Eight (3-body)", description: "A stable three-body choreography (G=1).", G: 1, softening: 0, bodies };
 }
 
-/**
- * Initial SI state vector for a moon on a circular (optionally inclined,
- * optionally retrograde) orbit about its parent. Everything is in metres /
- * m·s⁻¹ — the same SI frame as the planets — and added to the parent's own
- * state so the moon co-moves with the planet around the Sun.
- *
- * Note: the scenario data is SI (not AU); the frontend divides by AU only at
- * render time. We use the circular speed at the semi-major axis; eccentricity
- * is carried for reference but not applied to the initial velocity.
- */
-function moonInitialState(
-  moon: MoonData,
-  parent: BodyData,
-): { position: BodyData["position"]; velocity: BodyData["velocity"] } {
-  const angle = (moon.initialAngle * Math.PI) / 180;
-  const inc = (moon.inclination * Math.PI) / 180;
-  const a = moon.semiMajorAxis; // metres
-  const v = Math.sqrt((G * parent.mass) / a); // circular speed (m/s)
-  const dir = moon.retrograde ? -1 : 1;
-
-  // Circular orbit in the parent's equatorial (x–z) plane…
-  let px = a * Math.cos(angle);
-  let py = 0;
-  let pz = a * Math.sin(angle);
-  let vx = -dir * v * Math.sin(angle);
-  let vy = 0;
-  let vz = dir * v * Math.cos(angle);
-
-  // …tilted by the orbital inclination about the x-axis (rotate the y–z plane),
-  // so it stays a proper closed orbit, just inclined.
-  const ci = Math.cos(inc);
-  const si = Math.sin(inc);
-  [py, pz] = [py * ci - pz * si, py * si + pz * ci];
-  [vy, vz] = [vy * ci - vz * si, vy * si + vz * ci];
-
-  return {
-    position: {
-      x: parent.position.x + px,
-      y: parent.position.y + py,
-      z: parent.position.z + pz,
-    },
-    velocity: {
-      x: parent.velocity.x + vx,
-      y: parent.velocity.y + vy,
-      z: parent.velocity.z + vz,
-    },
-  };
-}
-
-/** Sun + planets (from generate-solar-system) + all Tier 1+2 moons. */
-export function buildSolarSystemWithMoons(): ScenarioData {
-  const base = buildSolarSystem();
-  const byName = new Map(base.bodies.map((b) => [(b.name ?? b.id).toLowerCase(), b]));
-
-  const moons: BodyData[] = [];
-  for (const m of MOONS) {
-    const parent = byName.get(m.parentName.toLowerCase());
-    if (!parent) continue;
-    const { position, velocity } = moonInitialState(m, parent);
-    moons.push({
-      id: m.name.toLowerCase(),
-      name: m.name,
-      type: "moon",
-      mass: m.mass,
-      radius: m.radius,
-      position,
-      velocity,
-      parentId: parent.id,
-      color: "#9aa0a6",
-    });
-  }
-
-  return {
-    name: "Solar System",
-    description: `Sun, planets and ${moons.length} major moons (NASA/JPL data).`,
-    softening: 1e6, // small enough for close moons (Phobos at 9.4e6 m) to orbit
-    bodies: [...base.bodies, ...moons],
-  };
-}
-
 const SCENARIOS: Record<string, () => ScenarioData> = {
-  "solar-system": buildSolarSystemWithMoons,
+  // Moons are no longer simulated bodies — they're a decorative frontend-only
+  // satellite system (see frontend/src/celestial/SatelliteSystem.ts). The
+  // physics engine simulates only the Sun, planets, gas giants and asteroids.
+  "solar-system": buildSolarSystem,
   "binary-star": buildBinaryStar,
   "asteroid-belt": buildAsteroidBelt,
   andromeda: buildAndromeda,
