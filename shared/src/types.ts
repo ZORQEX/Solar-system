@@ -35,12 +35,24 @@ export const BODY_TYPES = [
  * purely cosmetic — the physics core and wire protocol never depend on it.
  */
 export type PlanetSubtype =
+  // Named solar-system bodies get bespoke palettes/surfaces.
+  | "terrestrial-earth"
+  | "terrestrial-venus"
+  | "barren-mars"
+  | "barren-mercury"
+  | "gas-giant-jupiter"
+  | "gas-giant-saturn"
+  | "ice-giant-uranus"
+  | "ice-giant-neptune"
+  | "moon"
+  // Generic fallbacks derived from mass/radius for procedural/custom bodies.
   | "terrestrial"
+  | "barren"
   | "ice-world"
-  | "gas-giant"
   | "lava"
   | "ocean"
-  | "barren";
+  | "gas-giant"
+  | "generic";
 
 /** A minimal serializable 3-vector (the wire/JSON form of a Vector3). */
 export interface Vec3Data {

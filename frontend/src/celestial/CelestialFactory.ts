@@ -14,47 +14,144 @@ import type {
 
 type RGB = readonly [number, number, number];
 
+interface Spot {
+  color: RGB;
+  dir: RGB; // object-space direction to the spot centre
+  size: number;
+  strength: number;
+}
+
 interface SubtypeStyle {
+  /** Rocky: 5 height-biome layers low→high. Banded: first 4 are band colours. */
   colors: readonly [RGB, RGB, RGB, RGB, RGB];
   terrain: TerrainParams;
   atmosphereColor: RGB;
   atmosphereIntensity: number; // 0 = no atmosphere shell
   cloudOpacity: number; // 0 = no cloud shell
   cloudColor: RGB;
+  banded?: boolean; // gas/ice giants: latitude bands instead of height biomes
+  bandFreq?: number;
+  polarCaps?: boolean; // white latitude ice caps (Earth/Mars)
+  spot?: Spot; // storm spot (Great Red Spot, Neptune dark spot)
 }
 
-/** Per-subtype look (5-layer biome colours + terrain noise + atmosphere/clouds). */
+const ROCKY = (
+  type: 1 | 2 | 3,
+  amplitude: number,
+  sharpness: number,
+  offset: number,
+): TerrainParams => ({ type, amplitude, sharpness, offset, period: 0.6, persistence: 0.5, lacunarity: 1.9, octaves: 8 });
+
+/** Per-subtype look. Named bodies are bespoke; the rest are generic fallbacks. */
 const STYLES: Record<PlanetSubtype, SubtypeStyle> = {
+  // --- named solar-system bodies ---
+  "terrestrial-earth": {
+    colors: [[0.102, 0.435, 0.659], [0.176, 0.608, 0.878], [0.176, 0.431, 0.176], [0.545, 0.412, 0.078], [1, 1, 1]],
+    terrain: ROCKY(2, 0.16, 2.4, -0.075), // deep -offset → ~65% ocean
+    atmosphereColor: [0.31, 0.639, 0.91], atmosphereIntensity: 1.3, cloudOpacity: 0.6, cloudColor: [1, 1, 1],
+    polarCaps: true,
+  },
+  "terrestrial-venus": {
+    colors: [[0.831, 0.51, 0.039], [0.788, 0.659, 0.298], [0.835, 0.604, 0.227], [0.722, 0.47, 0.039], [0.878, 0.69, 0.376]],
+    terrain: ROCKY(3, 0.08, 1.4, -0.01), // low-relief volcanic ridges
+    atmosphereColor: [0.878, 0.502, 0.188], atmosphereIntensity: 1.5, cloudOpacity: 0.95, cloudColor: [0.941, 0.816, 0.502],
+  },
+  "barren-mars": {
+    colors: [[0.545, 0.145, 0.0], [0.757, 0.267, 0.055], [0.831, 0.4, 0.227], [0.788, 0.541, 0.353], [0.91, 0.91, 0.91]],
+    terrain: ROCKY(3, 0.17, 1.3, -0.03),
+    atmosphereColor: [0.78, 0.45, 0.3], atmosphereIntensity: 0.18, cloudOpacity: 0.0, cloudColor: [1, 1, 1],
+    polarCaps: true,
+  },
+  "barren-mercury": {
+    colors: [[0.227, 0.227, 0.227], [0.353, 0.353, 0.353], [0.533, 0.533, 0.533], [0.627, 0.627, 0.6], [0.753, 0.745, 0.71]],
+    terrain: ROCKY(3, 0.2, 1.0, -0.02), // heavy sharp cratering
+    atmosphereColor: [0.5, 0.45, 0.4], atmosphereIntensity: 0.0, cloudOpacity: 0.0, cloudColor: [1, 1, 1],
+  },
+  "gas-giant-jupiter": {
+    colors: [[0.545, 0.271, 0.075], [0.824, 0.412, 0.118], [0.961, 0.871, 0.702], [1.0, 0.549, 0.0], [0.961, 0.871, 0.702]],
+    terrain: ROCKY(1, 0.03, 1.0, 0.0),
+    atmosphereColor: [0.831, 0.533, 0.165], atmosphereIntensity: 1.0, cloudOpacity: 0.0, cloudColor: [0.9, 0.8, 0.65],
+    banded: true, bandFreq: 9,
+    spot: { color: [0.62, 0.13, 0.05], dir: [0.65, -0.2, 0.73], size: 0.32, strength: 0.7 },
+  },
+  "gas-giant-saturn": {
+    colors: [[0.784, 0.659, 0.51], [0.831, 0.686, 0.216], [0.961, 0.902, 0.784], [0.878, 0.773, 0.604], [0.961, 0.902, 0.784]],
+    terrain: ROCKY(1, 0.025, 1.0, 0.0),
+    atmosphereColor: [0.831, 0.784, 0.478], atmosphereIntensity: 0.9, cloudOpacity: 0.0, cloudColor: [0.92, 0.86, 0.72],
+    banded: true, bandFreq: 8,
+  },
+  "ice-giant-uranus": {
+    colors: [[0.49, 0.91, 0.91], [0.533, 0.918, 0.918], [0.573, 0.925, 0.925], [0.486, 0.878, 0.878], [0.49, 0.91, 0.91]],
+    terrain: ROCKY(1, 0.02, 1.0, 0.0),
+    atmosphereColor: [0.627, 0.941, 0.941], atmosphereIntensity: 0.9, cloudOpacity: 0.0, cloudColor: [0.7, 0.95, 0.95],
+    banded: true, bandFreq: 3,
+  },
+  "ice-giant-neptune": {
+    colors: [[0.0, 0.188, 0.8], [0.106, 0.31, 1.0], [0.165, 0.373, 1.0], [0.063, 0.247, 0.867], [0.106, 0.31, 1.0]],
+    terrain: ROCKY(1, 0.02, 1.0, 0.0),
+    atmosphereColor: [0.251, 0.502, 1.0], atmosphereIntensity: 1.0, cloudOpacity: 0.0, cloudColor: [0.6, 0.75, 1.0],
+    banded: true, bandFreq: 5,
+    spot: { color: [0.0, 0.102, 0.4], dir: [-0.6, 0.15, 0.78], size: 0.28, strength: 0.6 },
+  },
+  moon: {
+    colors: [[0.267, 0.267, 0.267], [0.333, 0.333, 0.333], [0.533, 0.533, 0.533], [0.604, 0.604, 0.604], [0.69, 0.69, 0.69]],
+    terrain: ROCKY(3, 0.18, 1.1, -0.02),
+    atmosphereColor: [0.5, 0.5, 0.5], atmosphereIntensity: 0.0, cloudOpacity: 0.0, cloudColor: [1, 1, 1],
+  },
+  // --- generic fallbacks (procedural/custom bodies) ---
   terrestrial: {
     colors: [[0.02, 0.08, 0.25], [0.05, 0.45, 0.3], [0.6, 0.5, 0.35], [0.12, 0.22, 0.08], [0.85, 0.85, 0.85]],
-    terrain: { type: 2, amplitude: 0.15, sharpness: 2.6, offset: -0.03, period: 0.6, persistence: 0.48, lacunarity: 1.9, octaves: 8 },
+    terrain: ROCKY(2, 0.15, 2.4, -0.05),
     atmosphereColor: [0.3, 0.6, 1.0], atmosphereIntensity: 1.3, cloudOpacity: 0.6, cloudColor: [1, 1, 1],
+    polarCaps: true,
   },
   ocean: {
     colors: [[0.0, 0.07, 0.2], [0.0, 0.2, 0.4], [0.05, 0.4, 0.55], [0.5, 0.5, 0.4], [0.9, 0.95, 1.0]],
-    terrain: { type: 2, amplitude: 0.1, sharpness: 2.0, offset: -0.04, period: 0.7, persistence: 0.5, lacunarity: 1.8, octaves: 7 },
+    terrain: ROCKY(2, 0.1, 2.0, -0.06),
     atmosphereColor: [0.3, 0.6, 1.0], atmosphereIntensity: 1.4, cloudOpacity: 0.7, cloudColor: [1, 1, 1],
   },
   "ice-world": {
     colors: [[0.25, 0.4, 0.55], [0.5, 0.7, 0.85], [0.75, 0.88, 0.95], [0.9, 0.95, 1.0], [1.0, 1.0, 1.0]],
-    terrain: { type: 3, amplitude: 0.12, sharpness: 1.6, offset: -0.01, period: 0.5, persistence: 0.5, lacunarity: 2.0, octaves: 7 },
+    terrain: ROCKY(3, 0.12, 1.6, -0.01),
     atmosphereColor: [0.6, 0.8, 1.0], atmosphereIntensity: 0.8, cloudOpacity: 0.3, cloudColor: [0.9, 0.95, 1.0],
   },
   barren: {
     colors: [[0.22, 0.12, 0.08], [0.45, 0.24, 0.14], [0.6, 0.4, 0.28], [0.5, 0.46, 0.42], [0.78, 0.76, 0.72]],
-    terrain: { type: 3, amplitude: 0.16, sharpness: 1.2, offset: -0.02, period: 0.4, persistence: 0.55, lacunarity: 2.1, octaves: 8 },
+    terrain: ROCKY(3, 0.16, 1.2, -0.02),
     atmosphereColor: [0.5, 0.4, 0.35], atmosphereIntensity: 0.0, cloudOpacity: 0.0, cloudColor: [1, 1, 1],
   },
   lava: {
     colors: [[0.08, 0.02, 0.0], [0.35, 0.05, 0.0], [0.7, 0.15, 0.0], [1.0, 0.45, 0.0], [1.0, 0.9, 0.4]],
-    terrain: { type: 3, amplitude: 0.18, sharpness: 1.4, offset: -0.02, period: 0.45, persistence: 0.5, lacunarity: 2.0, octaves: 8 },
+    terrain: ROCKY(3, 0.18, 1.4, -0.02),
     atmosphereColor: [1.0, 0.4, 0.12], atmosphereIntensity: 1.1, cloudOpacity: 0.0, cloudColor: [0.4, 0.3, 0.3],
   },
   "gas-giant": {
-    colors: [[0.55, 0.45, 0.32], [0.78, 0.66, 0.46], [0.88, 0.8, 0.62], [0.7, 0.55, 0.4], [0.95, 0.92, 0.82]],
-    terrain: { type: 1, amplitude: 0.04, sharpness: 1.0, offset: 0.0, period: 0.5, persistence: 0.5, lacunarity: 2.0, octaves: 4 },
-    atmosphereColor: [0.85, 0.7, 0.5], atmosphereIntensity: 1.0, cloudOpacity: 0.4, cloudColor: [0.92, 0.85, 0.7],
+    colors: [[0.545, 0.271, 0.075], [0.824, 0.412, 0.118], [0.961, 0.871, 0.702], [1.0, 0.549, 0.0], [0.961, 0.871, 0.702]],
+    terrain: ROCKY(1, 0.03, 1.0, 0.0),
+    atmosphereColor: [0.85, 0.7, 0.5], atmosphereIntensity: 1.0, cloudOpacity: 0.0, cloudColor: [0.92, 0.85, 0.7],
+    banded: true, bandFreq: 8,
   },
+  generic: {
+    colors: [[0.3, 0.32, 0.36], [0.45, 0.46, 0.5], [0.55, 0.55, 0.58], [0.62, 0.6, 0.56], [0.8, 0.8, 0.82]],
+    terrain: ROCKY(2, 0.14, 1.8, -0.03),
+    atmosphereColor: [0.5, 0.6, 0.7], atmosphereIntensity: 0.5, cloudOpacity: 0.2, cloudColor: [0.9, 0.9, 0.9],
+  },
+};
+
+/** Fixed, legibility-tuned scene radii for named bodies (override scaledRadius). */
+const NAMED_RADII: Record<string, number> = {
+  sun: 0.25,
+  jupiter: 0.13,
+  saturn: 0.11,
+  uranus: 0.08,
+  neptune: 0.08,
+  earth: 0.052,
+  terra: 0.052,
+  venus: 0.05,
+  mars: 0.036,
+  mercury: 0.028,
+  moon: 0.018,
+  luna: 0.018,
 };
 
 // Where the biome layers sit within the [0, amplitude] height range, and how
@@ -135,8 +232,7 @@ class SimpleBody implements CelestialObject {
   private glowTexture: THREE.Texture | null = null;
   private glowMaterial: THREE.SpriteMaterial | null = null;
 
-  constructor(body: BodyData) {
-    const radius = displayRadius(body);
+  constructor(body: BodyData, radius: number) {
     this.geometry = new THREE.SphereGeometry(radius, 32, 24);
     const c = bodyColor(body);
     const luminous = isLuminous(body);
@@ -302,6 +398,12 @@ export class CelestialFactory {
     return base * Math.min(1.0, Math.max(0.4, factor));
   }
 
+  /** Render radius: a fixed legibility size for named bodies, else scaledRadius. */
+  private visualRadius(body: BodyData): number {
+    const fixed = NAMED_RADII[(body.name ?? body.id).toLowerCase()];
+    return fixed ?? this.scaledRadius(body);
+  }
+
   private ensureBelt(): AsteroidBelt {
     if (!this.belt) {
       this.belt = new AsteroidBelt();
@@ -320,7 +422,7 @@ export class CelestialFactory {
         return new ProceduralAsteroid(this.asteroidVisual(body));
       default:
         // star, neutron-star, black-hole, generic
-        return new SimpleBody(body);
+        return new SimpleBody(body, this.visualRadius(body));
     }
   }
 
@@ -338,7 +440,26 @@ export class CelestialFactory {
    * barren, Neptune/Uranus → gas-giant (by type), generated icy planets → ice-world.
    */
   private deriveSubtype(body: BodyData): PlanetSubtype {
+    // 1. Named solar-system bodies get their bespoke look (exact name match).
+    const name = (body.name ?? body.id).toLowerCase();
+    const named: Record<string, PlanetSubtype> = {
+      earth: "terrestrial-earth", terra: "terrestrial-earth",
+      venus: "terrestrial-venus",
+      mars: "barren-mars",
+      mercury: "barren-mercury",
+      jupiter: "gas-giant-jupiter",
+      saturn: "gas-giant-saturn",
+      uranus: "ice-giant-uranus",
+      neptune: "ice-giant-neptune",
+      moon: "moon", luna: "moon",
+    };
+    if (named[name]) return named[name]!;
+    if (body.type === "moon") return "moon";
+
+    // 2. Explicit override.
     if (body.subtype) return body.subtype;
+
+    // 3. Fall back to type + mass/radius (density = mass / (4/3·π·r³), kg/m³).
     if (body.type === "gas-giant") return "gas-giant";
     const r = body.radius;
     const density = body.mass / ((4 / 3) * Math.PI * r * r * r);
@@ -375,9 +496,10 @@ export class CelestialFactory {
       transitions,
       blends: [b, b, b, b],
     };
+    const spot = style.spot;
     return {
       subtype,
-      radius: this.scaledRadius(body),
+      radius: this.visualRadius(body),
       seed: seedVec(body.id),
       terrain,
       palette,
@@ -385,6 +507,15 @@ export class CelestialFactory {
       atmosphereIntensity: style.atmosphereIntensity,
       cloudOpacity: style.cloudOpacity,
       cloudColor: color(style.cloudColor),
+      banded: style.banded ?? false,
+      bandFreq: style.bandFreq ?? 8,
+      polarCaps: style.polarCaps ? 1 : 0,
+      spotColor: color(spot ? spot.color : [0, 0, 0]),
+      spotDir: spot
+        ? new THREE.Vector3(spot.dir[0], spot.dir[1], spot.dir[2]).normalize()
+        : new THREE.Vector3(1, 0, 0),
+      spotStrength: spot ? spot.strength : 0,
+      spotSize: spot ? spot.size : 0,
     };
   }
 

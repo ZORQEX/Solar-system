@@ -13,6 +13,9 @@ varying vec3 vViewPos;
 void main() {
   float fres = dot(normalize(vViewNormal), normalize(-vViewPos));
   float rim = 1.0 - abs(fres);
+  // Only render the outer limb — discard the face so there's no full-disc tint
+  // overlaying the planet, just a glowing rim.
+  if (rim < 0.35) discard;
   float a = pow(rim, 3.0) * uIntensity;
 
   vec3 L = normalize(uSunPosition - vWorldPos);

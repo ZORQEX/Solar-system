@@ -62,6 +62,20 @@ export interface PlanetVisual {
   /** 0 disables the cloud shell. */
   cloudOpacity: number;
   cloudColor: THREE.Color;
+
+  // --- surface style ---
+  /** Gas/ice giants: horizontal latitude bands instead of height biomes. */
+  banded: boolean;
+  /** Number of bands when `banded`. */
+  bandFreq: number;
+  /** 1 = white latitude ice caps (Earth/Mars); 0 = none. */
+  polarCaps: number;
+  /** Storm-spot tint (Great Red Spot / Neptune dark spot); strength 0 disables. */
+  spotColor: THREE.Color;
+  /** Direction (object space) to the spot centre. */
+  spotDir: THREE.Vector3;
+  spotStrength: number;
+  spotSize: number;
 }
 
 /** Everything needed to render one asteroid (single body or belt instance). */

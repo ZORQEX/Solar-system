@@ -178,6 +178,13 @@ export class ProceduralPlanet implements CelestialObject {
       uShininess: { value: 16.0 },
       uSunPosition: { value: new THREE.Vector3(0, 0, 0) },
       uLightColor: { value: new THREE.Color(1, 1, 1) },
+      uBanded: { value: visual.banded ? 1 : 0 },
+      uBandFreq: { value: visual.bandFreq },
+      uPolarCaps: { value: visual.polarCaps },
+      uSpotColor: { value: visual.spotColor.clone() },
+      uSpotDir: { value: visual.spotDir.clone() },
+      uSpotStrength: { value: visual.spotStrength },
+      uSpotSize: { value: visual.spotSize },
     };
   }
 }
