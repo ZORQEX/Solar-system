@@ -2,6 +2,8 @@
   "name": "@universe-sim/backend",
   "version": "0.1.0",
   "private": true,
+  "author": "ZORQEX",
+  "license": "MIT",
   "type": "module",
   "main": "./src/core/index.ts",
   "dependencies": {

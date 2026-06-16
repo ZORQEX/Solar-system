@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "Multithreaded universe simulator: N-body physics, procedural worlds, emergent civilizations.",
+  "author": "ZORQEX",
+  "license": "MIT",
   "workspaces": [
     "shared",
     "backend",

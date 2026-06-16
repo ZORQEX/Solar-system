@@ -61,3 +61,11 @@ octree (`O(N log N)`) and advanced by a symplectic Velocity-Verlet integrator, s
 total energy stays bounded over long runs. Overlapping bodies merge while
 conserving mass and momentum. Everything in `core/` is deterministic and
 side-effect free.
+
+## Author
+
+Created and maintained by **ZORQEX**.
+
+## License
+
+Released under the [MIT License](LICENSE) — © 2026 ZORQEX.
