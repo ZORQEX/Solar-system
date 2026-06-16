@@ -26,6 +26,7 @@ export function SceneView() {
     const sync = () => {
       const s = useUniverseStore.getState();
       renderer.focus(s.selectedId);
+      renderer.setSimTime(s.timeSeconds); // drives decorative satellites
       if (predictor.available() && s.predictionEnabled) {
         predictor.sync(s.bodies, s.timeScale, s.paused);
       } else {

@@ -25,6 +25,8 @@ export class Renderer {
   private readonly sunPosition = new THREE.Vector3();
 
   private focusId: string | null = null;
+  /** Latest simulation time (server `timeSeconds`); drives decorative satellites. */
+  private simTimeSeconds = 0;
   private onSelect: ((id: string | null) => void) | null = null;
   private rafHandle = 0;
   private contextLost = false;
@@ -89,6 +91,15 @@ export class Renderer {
     this.focusId = id;
   }
 
+  /**
+   * Current simulation time in seconds (the server's authoritative `timeSeconds`).
+   * Decorative satellites advance from this, so they respect Pause and the
+   * time-scale exactly like the rest of the simulation.
+   */
+  setSimTime(seconds: number): void {
+    this.simTimeSeconds = seconds;
+  }
+
   start(): void {
     const loop = () => {
       this.rafHandle = requestAnimationFrame(loop);
@@ -101,21 +112,14 @@ export class Renderer {
       this.controls.update();
 
       // All per-body per-frame work lives in the factory (single RAF loop).
-      this.factory.update(this.latestBodies, this.sunPosition, this.camera.position, dt);
+      this.factory.update(this.latestBodies, this.sunPosition, this.camera.position, dt, this.simTimeSeconds);
 
       if (this.focusId) {
-        // Prefer the factory's rendered position — for moons that's the display
-        // orbit outside the planet, not the (buried) raw physics position.
-        const rendered = this.factory.getRenderedPosition(this.focusId);
-        if (rendered) {
-          this.controls.target.lerp(rendered, 0.1);
-        } else {
-          const body = this.latestBodies.find((b) => b.id === this.focusId);
-          if (body) {
-            const p = toScene(body.position);
-            if (Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z)) {
-              this.controls.target.lerp(p, 0.1);
-            }
+        const body = this.latestBodies.find((b) => b.id === this.focusId);
+        if (body) {
+          const p = toScene(body.position);
+          if (Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z)) {
+            this.controls.target.lerp(p, 0.1);
           }
         }
       }

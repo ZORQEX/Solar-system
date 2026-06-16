@@ -44,7 +44,6 @@ export type PlanetSubtype =
   | "gas-giant-saturn"
   | "ice-giant-uranus"
   | "ice-giant-neptune"
-  | "moon"
   // Generic fallbacks derived from mass/radius for procedural/custom bodies.
   | "terrestrial"
   | "barren"

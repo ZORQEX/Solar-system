@@ -64,12 +64,6 @@ export interface PlanetVisual {
   cloudColor: THREE.Color;
 
   // --- surface style ---
-  /**
-   * Moons: a quieter, cheaper look — flat diffuse base colour + crater bump
-   * only, skipping the 5-layer biome blend, polar caps, bands and spot. Keeps
-   * moons visually secondary to planets.
-   */
-  simple: boolean;
   /** Gas/ice giants: horizontal latitude bands instead of height biomes. */
   banded: boolean;
   /** Number of bands when `banded`. */
