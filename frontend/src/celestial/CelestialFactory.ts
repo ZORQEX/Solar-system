@@ -281,6 +281,14 @@ export class CelestialFactory {
   private belt: AsteroidBelt | null = null;
   /** Largest SI radius seen per body type, for relative sizing within a group. */
   private readonly maxRadiusByType = new Map<string, number>();
+  /**
+   * Per-moon rendered orbit radius (scene units). A moon's true orbit is far
+   * smaller than the legibility-inflated body radii (e.g. our Moon orbits 0.0026
+   * units from Earth, whose rendered radius is 0.052), so without this every
+   * moon would be buried inside its planet. We remap each moon into a visible
+   * ring just outside the parent's disc, keeping its physics-driven angle.
+   */
+  private readonly moonOrbitRadius = new Map<string, number>();
 
   constructor(private readonly scene: THREE.Scene) {}
 
@@ -296,6 +304,7 @@ export class CelestialFactory {
     for (const b of bodies) {
       this.maxRadiusByType.set(b.type, Math.max(this.maxRadiusByType.get(b.type) ?? 0, b.radius));
     }
+    this.computeMoonOrbits(bodies);
 
     for (const body of bodies) {
       present.add(body.id);
@@ -344,6 +353,7 @@ export class CelestialFactory {
     cameraPosition: THREE.Vector3,
     dt: number,
   ): void {
+    const byId = new Map(bodies.map((b) => [b.id, b]));
     for (const body of bodies) {
       const p = toScene(body.position);
       if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.z)) continue;
@@ -354,8 +364,13 @@ export class CelestialFactory {
       }
       const obj = this.objects.get(body.id);
       if (!obj) continue;
-      obj.object3D.position.copy(p);
-      const camDist = cameraPosition.distanceTo(p);
+
+      // Moons render on a display orbit just outside their parent's disc (see
+      // moonOrbitRadius) so they stay visible/clickable instead of buried; the
+      // direction comes from the real physics position, so they still orbit.
+      const renderPos = this.moonRenderPosition(body, p, byId);
+      obj.object3D.position.copy(renderPos);
+      const camDist = cameraPosition.distanceTo(renderPos);
       obj.update(dt, sunPosition, camDist);
     }
     this.belt?.update(sunPosition);
@@ -364,6 +379,16 @@ export class CelestialFactory {
   /** Pickable root meshes (excludes the asteroid belt) for click selection. */
   pickables(): THREE.Object3D[] {
     return [...this.objects.values()].map((o) => o.object3D);
+  }
+
+  /**
+   * Rendered (scene-space) position of a tracked body — for moons this is the
+   * remapped display-orbit position, not the raw physics position. Used by the
+   * camera-focus logic so "fly to a moon" targets where the moon is drawn.
+   */
+  getRenderedPosition(id: string): THREE.Vector3 | null {
+    const obj = this.objects.get(id);
+    return obj ? obj.object3D.position.clone() : null;
   }
 
   dispose(): void {
@@ -402,6 +427,66 @@ export class CelestialFactory {
   private visualRadius(body: BodyData): number {
     const fixed = NAMED_RADII[(body.name ?? body.id).toLowerCase()];
     return fixed ?? this.scaledRadius(body);
+  }
+
+  /**
+   * Assign each moon a rendered orbit radius: a visible ring outside its parent's
+   * disc. Per parent, moons are log-spaced by their true semi-major axis between
+   * 1.6× and 4.6× the parent's render radius, so ordering/relative spacing is
+   * preserved while the whole system stays compact and legible.
+   */
+  private computeMoonOrbits(bodies: readonly BodyData[]): void {
+    this.moonOrbitRadius.clear();
+    const byId = new Map(bodies.map((b) => [b.id, b]));
+    const groups = new Map<string, BodyData[]>();
+    for (const b of bodies) {
+      if (b.type !== "moon" || !b.parentId || !byId.has(b.parentId)) continue;
+      (groups.get(b.parentId) ?? groups.set(b.parentId, []).get(b.parentId)!).push(b);
+    }
+
+    const INNER = 1.6;
+    const OUTER = 4.6;
+    for (const [parentId, moons] of groups) {
+      const parent = byId.get(parentId)!;
+      const parentR = this.visualRadius(parent);
+      const siDist = (m: BodyData) =>
+        Math.hypot(
+          m.position.x - parent.position.x,
+          m.position.y - parent.position.y,
+          m.position.z - parent.position.z,
+        );
+      const dists = moons.map(siDist);
+      const logMin = Math.log(Math.min(...dists));
+      const span = Math.log(Math.max(...dists)) - logMin;
+      moons.forEach((moon, i) => {
+        const t = span > 1e-6 ? (Math.log(dists[i]!) - logMin) / span : 0.5;
+        const ideal = parentR * (INNER + (OUTER - INNER) * t);
+        // Never let the moon disc overlap the parent disc.
+        const floor = parentR + this.visualRadius(moon) * 1.6 + 0.012;
+        this.moonOrbitRadius.set(moon.id, Math.max(ideal, floor));
+      });
+    }
+  }
+
+  /**
+   * Where to draw a moon: its parent's scene position plus the (real) orbit
+   * direction scaled to the moon's assigned display-orbit radius. Non-moons (or
+   * moons whose parent/ orbit is unknown) render at their raw scene position.
+   */
+  private moonRenderPosition(
+    body: BodyData,
+    rawScenePos: THREE.Vector3,
+    byId: Map<string, BodyData>,
+  ): THREE.Vector3 {
+    if (body.type !== "moon" || !body.parentId) return rawScenePos;
+    const parent = byId.get(body.parentId);
+    const orbitR = this.moonOrbitRadius.get(body.id);
+    if (!parent || orbitR === undefined) return rawScenePos;
+    const parentPos = toScene(parent.position);
+    const dir = rawScenePos.clone().sub(parentPos);
+    const len = dir.length();
+    if (len < 1e-9) return rawScenePos;
+    return parentPos.add(dir.multiplyScalar(orbitR / len));
   }
 
   private ensureBelt(): AsteroidBelt {
@@ -472,6 +557,9 @@ export class CelestialFactory {
   private planetVisual(body: BodyData): PlanetVisual {
     const subtype = this.deriveSubtype(body);
     const style = STYLES[subtype];
+    const isMoon = subtype === "moon";
+    // Titan is the one moon with a real atmosphere — a thin orange haze (no clouds).
+    const titanHaze = (body.name ?? body.id).toLowerCase() === "titan";
     const terrain = { ...style.terrain };
     // Per-body jitter so same-subtype worlds differ in feature scale + sea level.
     const u = seedUnit(body.id);
@@ -503,10 +591,11 @@ export class CelestialFactory {
       seed: seedVec(body.id),
       terrain,
       palette,
-      atmosphereColor: color(style.atmosphereColor),
-      atmosphereIntensity: style.atmosphereIntensity,
+      atmosphereColor: titanHaze ? new THREE.Color(0.85, 0.55, 0.22) : color(style.atmosphereColor),
+      atmosphereIntensity: titanHaze ? 0.5 : style.atmosphereIntensity,
       cloudOpacity: style.cloudOpacity,
       cloudColor: color(style.cloudColor),
+      simple: isMoon,
       banded: style.banded ?? false,
       bandFreq: style.bandFreq ?? 8,
       polarCaps: style.polarCaps ? 1 : 0,

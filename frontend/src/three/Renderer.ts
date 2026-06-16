@@ -104,11 +104,18 @@ export class Renderer {
       this.factory.update(this.latestBodies, this.sunPosition, this.camera.position, dt);
 
       if (this.focusId) {
-        const body = this.latestBodies.find((b) => b.id === this.focusId);
-        if (body) {
-          const p = toScene(body.position);
-          if (Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z)) {
-            this.controls.target.lerp(p, 0.1);
+        // Prefer the factory's rendered position — for moons that's the display
+        // orbit outside the planet, not the (buried) raw physics position.
+        const rendered = this.factory.getRenderedPosition(this.focusId);
+        if (rendered) {
+          this.controls.target.lerp(rendered, 0.1);
+        } else {
+          const body = this.latestBodies.find((b) => b.id === this.focusId);
+          if (body) {
+            const p = toScene(body.position);
+            if (Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z)) {
+              this.controls.target.lerp(p, 0.1);
+            }
           }
         }
       }

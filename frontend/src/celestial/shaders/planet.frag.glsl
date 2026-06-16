@@ -40,6 +40,7 @@ uniform vec3 uSunPosition; // world-space position of the sun
 uniform vec3 uLightColor;
 
 // surface style
+uniform int uSimple; // 1 = moon: flat base colour + crater bump, no biomes
 uniform int uBanded;
 uniform float uBandFreq;
 uniform float uPolarCaps;
@@ -63,7 +64,20 @@ void main() {
   float specAmount = 0.0;
   vec3 N;
 
-  if (uBanded == 1) {
+  if (uSimple == 1) {
+    // --- moon: crater bump + a single matte base colour (no biome layers) ---
+    vec3 dx = uBumpOffset * vTangent;
+    vec3 dy = uBumpOffset * vBitangent;
+    float h_dx = terrainHeight(uType, vLocalPos + uSeed + dx, uAmplitude, uSharpness, uOffset, uPeriod, uPersistence, uLacunarity, uOctaves);
+    float h_dy = terrainHeight(uType, vLocalPos + uSeed + dy, uAmplitude, uSharpness, uOffset, uPeriod, uPersistence, uLacunarity, uOctaves);
+    vec3 pos = vLocalPos * (uRadius * (1.0 + h));
+    vec3 pos_dx = (vLocalPos + dx) * (uRadius * (1.0 + h_dx));
+    vec3 pos_dy = (vLocalPos + dy) * (uRadius * (1.0 + h_dy));
+    vec3 bumpNormal = normalize(cross(pos_dx - pos, pos_dy - pos));
+    N = normalize(mix(vNormal, bumpNormal, uBumpStrength));
+    // Faint height shading so craters/maria read, around the mid base colour.
+    surface = uColor3 * (0.82 + 0.36 * clamp(h / max(uAmplitude, 1e-4), 0.0, 1.0));
+  } else if (uBanded == 1) {
     // --- gas / ice giant: horizontal bands by latitude ---
     float perturb = (cloudFbm(vLocalPos * 2.0 + uSeed) - 0.5) * 1.2;
     float band = sin(nrm.y * PI * uBandFreq + perturb) * 0.5 + 0.5;
